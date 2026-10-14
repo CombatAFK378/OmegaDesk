@@ -1,0 +1,14 @@
+# FalkorDB — the single source of truth (architecture §3). Named volume so
+# `docker compose down && up` keeps the graph (Phase 0 exit test 3).
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: omegadesk-falkordb
+    ports:
+      - "6380:6379"   # host 6380: existing redis container occupies host 6379
+    volumes:
+      - falkordb_data:/var/lib/falkordb/data   # redis CONFIG dir (probed: CONFIG GET dir)
+    restart: unless-stopped
+
+volumes:
+  falkordb_data:
