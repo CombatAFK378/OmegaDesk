@@ -21,17 +21,17 @@ H_CASES = 24
 FREEZE_SET = {3, 5, 8, 11, 14, 19, 20, 23}   # fraud/freeze → 8 FreezeOrders
 ESCALATE_SET = {2, 6, 9, 12, 16, 21, 24}     # unclear/escalate
 # the rest (9): legit/monitor
-OVERRIDES = {  # case index → (analyst, action, reason)
+OVERRIDES = {  # case index → (analyst, action, reason); ids = HOV-<case>
     6:  ("AN-PRIYA", "escalate", "same sender repeated twice this month — watch, don't clear"),
+    16: ("AN-DEV",   "clear",    "KYC-verified merchant on registered cadence — business activity"),
     19: ("AN-PRIYA", "escalate", "shared-device signal too thin alone — need money-shape proof"),
-    23: ("AN-DEV",   "clear",    "KYC-verified merchant on registered cadence — business activity"),
 }
-BUNDLES = [  # rotating 2-signal bundles (index = i % 6)
+BUNDLES = [  # rotating bundles (index = i % 6) — §11's precedent families
     ("FAN_IN", "SUB_THRESHOLD"),
     ("PASS_THROUGH", "NEW_ACCOUNT"),
     ("SHARED_DEVICE", "FAN_IN"),
     ("SUB_THRESHOLD", "SHARED_IDENTITY"),
-    ("BUSINESS_KYC", "REGULAR_CADENCE"),
+    ("FAN_IN", "BUSINESS_KYC", "REGULAR_CADENCE"),   # the merchant fan-in family
     ("RING_MEMBER", "PASS_THROUGH"),
 ]
 CITES = [4, 8, 12, 16, 24, 10, 18, 22]       # HD-i cites HD-(i-1); never cites HD-019
@@ -222,6 +222,10 @@ def create_history(g):
                 CREATE (dec)-[:MADE_BY {{ts:'{ts}'}}]->(an)
                 CREATE (dec)-[:APPLIED_POLICY {{ts:'{ts}'}}]->(reg)"""
         )
+        if len(sigs) > 2:   # the merchant-fan-in bundle carries FAN_IN+KYC+CADENCE
+            g.query(
+                f"""MATCH (c:Case {{id:'{cid}'}}), (s3:Signal {{code:'{sigs[2]}'}})
+                    CREATE (c)-[:EXHIBITS {{value:1, as_of:'{ts}'}}]->(s3)""")
         if action == "freeze":
             g.query(
                 f"""MATCH (a:Account {{id:'{d1}'}}), (dec:Decision {{id:'HD-{i:03d}'}})
@@ -243,7 +247,7 @@ def create_history(g):
         g.query(
             f"""MATCH (c:Case {{id:'H-C{ci:03d}'}}), (old:Decision {{id:'HD-{ci:03d}'}}),
                     (an:Analyst {{id:'{analyst}'}}), (reg:Regulation {{id:'{_reg_for(ci)}'}})
-                CREATE (ov:Decision {{id:'HOV-{n:03d}', ts:'{ots}', verdict:'{verdict}',
+                CREATE (ov:Decision {{id:'HOV-{ci:03d}', ts:'{ots}', verdict:'{verdict}',
                           action:'{action}', confidence:{conf}, decided_by:'analyst',
                           rationale:$reason, policy_version:'2025-06'}})
                 CREATE (ov)-[:FOR_CASE {{ts:'{ots}'}}]->(c)

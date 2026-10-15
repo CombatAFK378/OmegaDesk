@@ -131,6 +131,8 @@ def find_precedents(case_id, limit=3):
     # exclusions first (§8): overruled precedent is never cited
     overruled = {r[0] for r in
                  g.query("MATCH (d:Decision)<-[:OVERRIDES]-() RETURN d.id").result_set}
+    corrections = {r[0] for r in
+                   g.query("MATCH (d:Decision)-[:OVERRIDES]->() RETURN d.id").result_set}
 
     rows = g.query(
         """MATCH (c:Case {id:$cid})-[:EXHIBITS]->(s:Signal)
@@ -163,11 +165,17 @@ def find_precedents(case_id, limit=3):
             "verdict": drow[0], "action": drow[1], "confidence": drow[2],
             "decided_at": drow[3], "rationale": drow[4],
             "shared_signals": shared, "shared_count": len(shared),
-            "proximity": proximity, "pc_created": pc_created,
+            "proximity": proximity, "corrected": did in corrections,
+            "correction_note": ("this decision has a later analyst correction — "
+                                "treat as the desk's strongest lesson" if did in corrections
+                                else ""),
+            "pc_created": pc_created,
         })
-    # §8 ranking: signal overlap first, then entity proximity, then recency
+    # §8 ranking: signal overlap first (corrections score higher — the desk's
+    # hardest-earned lessons), then entity proximity, then recency
     cands.sort(key=lambda c: c["pc_created"], reverse=True)
-    cands.sort(key=lambda c: (-c["shared_count"], 0 if c["proximity"] else 1))
+    cands.sort(key=lambda c: (-(c["shared_count"] + (0.4 if c["corrected"] else 0)),
+                              0 if c["proximity"] else 1))
     top = cands[:max(1, int(limit))]
     for c in top:
         c.pop("pc_created", None)

@@ -24,9 +24,9 @@ EXPECTED_NODES = {
 EXPECTED_EDGES = {
     "SENT": 6, "TO": 6, "USED_DEVICE": 2, "SAME_IDENTITY": 1, "OWNS": 14,
     "OPERATED_BY": 1, "TRIGGERED_BY": 2, "FOR_ALERT": 25, "ABOUT": 50,
-    "EXHIBITS": 51, "EVIDENCE": 26, "FOR_CASE": 28, "CITES": 8, "OVERRIDES": 3,
+    "EXHIBITS": 55, "EVIDENCE": 26, "FOR_CASE": 28, "CITES": 8, "OVERRIDES": 3,
     "APPLIED_POLICY": 28, "MADE_BY": 28, "FREEZES": 9, "ISSUED_BY": 9,
-    "ASSIGNED_TO": 25,                                               # → 322
+    "ASSIGNED_TO": 25,                                               # → 326
 }
 FAILURES = []
 
@@ -40,8 +40,8 @@ def check(name, ok, detail=""):
 def match_counts(nodes, edges):
     check("node counts exact", nodes == EXPECTED_NODES, f"got {nodes}")
     check("edge counts exact", edges == EXPECTED_EDGES, f"got {edges}")
-    check("totals 139 nodes / 322 edges",
-          sum(nodes.values()) == 139 and sum(edges.values()) == 322,
+    check("totals 139 nodes / 326 edges",
+          sum(nodes.values()) == 139 and sum(edges.values()) == 326,
           f"got {sum(nodes.values())}/{sum(edges.values())}")
 
 
@@ -68,7 +68,7 @@ def lineage(g):
     trap = g.query(
         "MATCH (ov:Decision)-[:OVERRIDES]->(old:Decision {id:'HD-019'}) RETURN ov.id"
     ).result_set
-    check("E-trap ready: HD-019 was overruled by HOV-002", trap == [["HOV-002"]], f"got {trap}")
+    check("E-trap ready: HD-019 was overruled by HOV-019", trap == [["HOV-019"]], f"got {trap}")
 
     merchant = g.query(
         "MATCH (a:Account {id:'A-MER-PAY'})-[:OPERATED_BY]->(m:Merchant) "

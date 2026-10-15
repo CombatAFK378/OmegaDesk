@@ -17,7 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.journal import JOURNAL_PATH  # noqa: E402
 from app.graph import get_graph  # noqa: E402
-from app.policy import decide_action, override_action  # noqa: E402
+from app.policy import (decide_action, precedent_action_guard,  # noqa: E402
+                        record_override)
 from app.tools import TOOL_REGISTRY, run_tool  # noqa: E402
 from app.tools.registry import set_memory_ablation  # noqa: E402
 from seed.seed import seed_graph  # noqa: E402
@@ -92,8 +93,8 @@ def main():
     ids2 = [p["decision_id"] for p in p2["precedents"]]
     check("E-trap: the OVERRULED HD-019 is NEVER cited (R4 gate)",
           "HD-019" not in ids2, f"got {ids2}")
-    check("E-trap: the correcting HOV-002 IS returned instead",
-          "HOV-002" in ids2, f"got {ids2}")
+    check("E-trap: the correcting HOV-019 IS returned instead",
+          "HOV-019" in ids2, f"got {ids2}")
 
     print("--- get_case_context ---")
     ctx = run_tool("get_case_context", inv, case_id="TEST-C1")
@@ -142,10 +143,20 @@ def main():
     check("policy: <0.60 → monitor", decide_action(0.40) == "monitor")
     check("policy: absence + mitigating + no aggravating → clear",
           decide_action(0.50, True, False, True) == "clear")
-    check("override safety: override can only push toward escalate (§10)",
-          override_action("freeze", "analyst says too thin") == "escalate")
-    ok_reason, _ = raises(ValueError, override_action, base_action="freeze", reason="")
+    check("override safety: clear never rides a precedent (§10)",
+          precedent_action_guard("clear", [{"action": "clear"}]) == "escalate")
+    check("override safety: freeze beside a corrected twin → escalate (§11)",
+          precedent_action_guard("freeze", [], corrected_cited=True,
+                                 valid_distinguish=False) == "escalate")
+    check("override safety: a proven signal-level distinction lets evidence decide (§11 D)",
+          precedent_action_guard("freeze", [], corrected_cited=True,
+                                 valid_distinguish=True) == "freeze")
+    ok_reason, _ = raises(ValueError, record_override, case_id="H-C016",
+                          analyst_id="AN-DEV", action="clear", reason="")
     check("override safety: no reason → not recorded", ok_reason)
+    ok_bad, _ = raises(ValueError, record_override, case_id="H-C016",
+                       analyst_id="AN-DEV", action="detonate", reason="chaos")
+    check("override safety: unknown action rejected", ok_bad)
 
     print("--- ablation → governs find_precedents (§12 with/without hook) ---")
     set_memory_ablation(True)
@@ -154,8 +165,8 @@ def main():
           stripped == {"ablated": True, "precedents": [], "case_id": "TEST-C2"}, f"got {stripped}")
     set_memory_ablation(False)
     restored = run_tool("find_precedents", inv, case_id="TEST-C2")
-    check("ablation OFF: precedents back (HOV-002 present)",
-          not restored.get("ablated") and "HOV-002" in
+    check("ablation OFF: precedents back (HOV-019 present)",
+          not restored.get("ablated") and "HOV-019" in
           [p["decision_id"] for p in restored["precedents"]], f"got {restored}")
 
     ok_role, _ = raises(PermissionError, run_tool, name="get_case_context",
