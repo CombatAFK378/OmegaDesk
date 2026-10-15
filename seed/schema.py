@@ -1,34 +1,35 @@
-"""Phase 1 — graph schema (architecture §4): labels, indices, reset.
+"""Schema — architecture v2.1 §6 (single graph `desk`).
 
-Node labels and edge types live here so every phase creates the same shapes.
-The single graph is named `desk` (app/config.py).
+What changed from v1.3 (Rework Ledger R1):
+- every transfer is a `Transaction` NODE: (Account)-[:SENT]->(Transaction)-[:TO]->(Account)
+  — so evidence can point at the transfer itself (property graphs can't link edge→edge)
+- freezes are `FreezeOrder` EVENTS; Account has NO status property (it is derived
+  from FreezeOrder events, never mutated) — history replays exactly
+- new desk nodes: `Decision` (with CITES/OVERRIDES precedent arrows) and `Signal`
+  (the fixed pattern catalog); `Merchant` replaces Employer
+- `HOLDS` renamed `OWNS`; `PAID_BY` replaced by `OPERATED_BY`
 """
 
-# §4 node labels — exactly these eight, nothing else
-NODE_LABELS = ["Person", "Account", "Device", "Employer", "Alert", "Case", "Regulation", "Analyst"]
+NODE_LABELS = ["Person", "Account", "Device", "Merchant", "Transaction",
+               "Alert", "Case", "Signal", "Decision", "FreezeOrder",
+               "Analyst", "Regulation"]
 
-# §4 edges — the only relationship types the product uses
-EDGE_TYPES = [
-    "SENT", "USED_DEVICE", "SAME_IDENTITY", "PAID_BY", "TRIGGERED",
-    "INVESTIGATED", "EVIDENCE", "RESOLVED_AS", "FROZEN_BY", "CITED_BY",
-    "ASSIGNED_TO", "HOLDS",  # HOLDS: Person→Account ownership — §4 gap, flagged (see phase report)
-]
+EDGE_TYPES = ["SENT", "TO", "USED_DEVICE", "SAME_IDENTITY", "OWNS",
+              "OPERATED_BY", "TRIGGERED_BY", "FOR_ALERT", "ABOUT",
+              "EXHIBITS", "EVIDENCE", "FOR_CASE", "CITES", "OVERRIDES",
+              "APPLIED_POLICY", "MADE_BY", "FREEZES", "ISSUED_BY", "ASSIGNED_TO"]
 
-# Lookup properties worth an index (every tool lookup key §6 relies on)
-INDICES = [
-    ("Account", "id"), ("Person", "name"), ("Device", "id"),
-    ("Employer", "id"), ("Alert", "id"), ("Case", "id"),
-    ("Regulation", "id"), ("Analyst", "name"),
-]
+INDICES = [("Account", "id"), ("Person", "id"), ("Device", "id"),
+           ("Merchant", "id"), ("Transaction", "id"), ("Alert", "id"),
+           ("Case", "id"), ("Signal", "code"), ("Decision", "id"),
+           ("FreezeOrder", "id"), ("Analyst", "name"), ("Regulation", "id")]
 
 
 def reset_graph(g):
-    """Wipe all data — `down/up` persistence keeps the volume; reset rebuilds content."""
     g.query("MATCH (n) DETACH DELETE n")
 
 
 def _create_index(g, label, prop):
-    """FalkorDB first, legacy RedisGraph syntax as fallback; tolerate re-runs."""
     attempts = [
         f"CREATE INDEX FOR (n:{label}) ON (n.{prop})",
         f"CREATE INDEX ON :{label}({prop})",
@@ -38,7 +39,7 @@ def _create_index(g, label, prop):
         try:
             g.query(q)
             return
-        except Exception as e:  # noqa: BLE001 — redis client raises bare ResponseError
+        except Exception as e:  # noqa: BLE001
             msg = str(e).lower()
             if "already exists" in msg or "already indexed" in msg:
                 return
@@ -50,3 +51,11 @@ def create_schema(g):
     reset_graph(g)
     for label, prop in INDICES:
         _create_index(g, label, prop)
+
+
+def graph_counts(g):
+    nodes = {label: g.query(f"MATCH (n:{label}) RETURN count(n)").result_set[0][0]
+             for label in NODE_LABELS}
+    edges = {et: g.query(f"MATCH ()-[r:{et}]->() RETURN count(r)").result_set[0][0]
+             for et in EDGE_TYPES}
+    return nodes, edges

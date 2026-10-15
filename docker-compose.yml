@@ -10,5 +10,13 @@ services:
       - falkordb_data:/var/lib/falkordb/data   # redis CONFIG dir (probed: CONFIG GET dir)
     restart: unless-stopped
 
+  # Graph viz (zero build) — open http://localhost:3000, connect to localhost:6380, graph desk
+  browser:
+    image: falkordb/falkordb-browser:latest
+    container_name: omegadesk-browser
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
 volumes:
   falkordb_data:
