@@ -7,5 +7,7 @@ policy and execution are deterministic CODE (§5/§10) — see app/policy.py.
 Import this package and everything registers."""
 from .registry import TOOL_REGISTRY, Tool, run_tool
 from . import read_tools  # noqa: F401  (side effect: registration)
+from . import absence  # noqa: F401  (C3: proof-of-absence receipt)
+from . import graph_algos  # noqa: F401  (C3: hub centrality)
 
 __all__ = ["TOOL_REGISTRY", "Tool", "run_tool"]

@@ -53,6 +53,23 @@ TOOLS_SCHEMA = [
         "parameters": {"type": "object", "properties": {
             "account_ids": {"type": "array", "items": {"type": "string"}}},
             "required": ["account_ids"]}}},
+    {"type": "function", "function": {
+        "name": "prove_absence",
+        "description": "Run the negative checklist on this case: shared devices with "
+                       "frozen accounts, identity links, payments to frozen accounts, "
+                       "structuring among payers, velocity, unverified payers. ALL passing "
+                       "= a RECEIPT proving the flagged shape is benign (e.g. payroll into "
+                       "a verified merchant) — the desk's only honest path to 'clear'.",
+        "parameters": {"type": "object", "properties": {
+            "case_id": {"type": "string", "description": "the case id"}}}}},
+    {"type": "function", "function": {
+        "name": "hub_centrality",
+        "description": "Betweenness centrality on the money paths around this case: "
+                       "which account is the funnel's heart. Use it to point at the "
+                       "pattern's operator.",
+        "parameters": {"type": "object", "properties": {
+            "case_id": {"type": "string"},
+            "k": {"type": "integer", "description": "neighborhood hop expansion, ≤2"}}}}},
 ]
 # gpt-oss (harmony) wants a structured-answer channel — give it an official one;
 # without it the model improvises a tool named "JSON" and the API 400s.
@@ -85,7 +102,10 @@ Method:
      (e.g. BUSINESS_KYC). A different past verdict alone is NOT distinguishing.
    - ALWAYS list every precedent you reasoned about (applies true AND false); if a similar
      case's decision was CORRECTED (overruled), include its correction id too.
-4. When done, CALL THE respond TOOL with the verdict object (never plain prose):
+4. If the shape looks like a legitimate business pattern (verified business receiver, regular
+   billing schedule, fresh unrelated payers), CALL prove_absence before concluding: a passing
+   receipt is the desk's ONLY honest path to 'clear' (verdict legit).
+5. When done, CALL THE respond TOOL with the verdict object (never plain prose):
    {"verdict": "fraud|legit|unclear", "confidence": 0.0-1.0, "evidence": ["q1"],
     "precedents": [{"decision_id": "...", "applies": true|false, "distinguishing_signals": [...]}],
     "rationale": "<=120 words"}

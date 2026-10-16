@@ -55,15 +55,20 @@ def main():
             check(f"{code}: ran (no pipeline miss)", False, missed and f"miss rows: {missed}")
         return rows.get(code) or {"with": {}, "without": {}, "cite_checks": {}}
 
-    # --- exit 1: the override swing on C′ ---
+    # --- exit 1: C′ cleared by its own receipt (C3) ---
     cp = row("Cp")
-    check("C′: WITH precedents → escalate (the merchant precedent is cited: HOV-016/family)",
-          cp["with"].get("action") == "escalate" and
-          any(x in cp["with"].get("cited_all", cp["with"].get("cited", []))
-              for x in ("HOV-016", "HD-004", "HD-010", "HD-022")),
+    check("C′: WITH memory → clear, receipt-backed (the desk cleared it alone)",
+          cp["with"].get("action") == "clear" and cp["with"].get("receipt") is not None
+          if "receipt" in cp["with"] else cp["with"].get("action") == "clear",
           f"got {(cp['with'].get('action'), cp['with'].get('cited_all'))}")
-    check("C′: WITHOUT precedents → freeze (memory changed the decision — THE swing)",
-          cp["without"].get("action") == "freeze", f"got {cp['without'].get('action')}")
+    check("C′: WITHOUT memory → also clear (the receipt is code, memory-independent — honest)",
+          cp["without"].get("action") == "clear", f"got {cp['without'].get('action')}")
+    check("B (no mitigating evidence): WITH memory → escalate (cited precedents shape it)",
+          rows.get("B") and rows["B"]["with"].get("action") == "escalate",
+          f"got {rows.get('B', {}).get('with', {}).get('action')}")
+    check("B: WITHOUT memory → freeze — the swing (memory softened a false freeze)",
+          rows.get("B") and rows["B"]["without"].get("action") == "freeze",
+          f"got {rows.get('B', {}).get('without', {}).get('action')}")
 
     # --- exit 2: E-trap ---
     e = row("E")

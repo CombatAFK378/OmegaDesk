@@ -49,6 +49,19 @@ LLM_BASE_URL=https://api.groq.com/openai/v1     # or https://ollama.com/v1
 LLM_MODEL=openai/gpt-oss-120b                   # ollama: gpt-oss:120b
 ```
 
+## C3 — Track 01 strength (built)
+
+| capability | what it does |
+|---|---|
+| **Proof-of-absence** (`app/tools/absence.py`) | the desk's only honest path to `clear`: a 9-point negative checklist (devices, identity, frozen counterparties, structuring, velocity, unverified payers, pass-through shape) run by **code**; an all-clean pass issues a replayable **receipt** (digest + as_of) stored on the Decision, and the case auto-clears — no human wait for obviously-benign shapes |
+| **Analyst routing** (`app/routing.py`) | escalated/frozen cases land on a named queue deterministically: device-rings → `AN-PRIYA`, merchant shapes → `AN-DEV`; shown in the UI |
+| **Hub centrality** (`app/tools/graph_algos.py`) | betweenness over the case's money neighborhood — points at the funnel's heart; a read tool the agent can call (also via MCP) |
+| **MCP server** (`app/mcp_server.py`) | the desk exposed over the Model Context Protocol — an external MCP client can run a **full investigation**; wire it into Claude Desktop with `docs/claude_desktop_config.json`:
+
+```bash
+.venv/bin/python -m app.mcp_server      # stdio transport; the C3 exit test drives it with a real MCP client
+```
+
 ## Run the demo path (§17 in three minutes)
 
 ```bash

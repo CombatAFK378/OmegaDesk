@@ -128,28 +128,31 @@ function inShort(c) {
   const d = c.decisions[c.decisions.length - 1];
   if (!d) return "";
   const act = ACTION_PLAIN[d.action] || d.action;
-  const why = [];
-  for (const s of c.signals) {
-    const p = SIG_PLAIN[s.code];
-    if (p && (s.code !== "BUSINESS_KYC" || !why.length)) { /* keep only first two */
-    }
-  }
   const parts = [];
-  const fan = c.signals.find((s) => s.code === "FAN_IN");
+  const fan = (c.signals || []).find((s) => s.code === "FAN_IN");
   if (fan) parts.push(`${fan.value} different people paid one account at once`);
-  if (c.signals.find((s) => s.code === "SUB_THRESHOLD")) parts.push("several payments just under the ₹50,000 line");
-  if (c.signals.find((s) => s.code === "PASS_THROUGH")) parts.push("money arrived and was sent straight out");
-  if (c.signals.find((s) => s.code === "SHARED_DEVICE")) parts.push("one device was shared across accounts");
-  if (c.signals.find((s) => s.code === "RING_MEMBER")) parts.push("that device is tied to known fraud");
-  const kyc = c.signals.find((s) => s.code === "BUSINESS_KYC");
+  if ((c.signals || []).find((s) => s.code === "SUB_THRESHOLD")) parts.push("several payments just under the ₹50,000 line");
+  if ((c.signals || []).find((s) => s.code === "PASS_THROUGH")) parts.push("money arrived and was sent straight out");
+  if ((c.signals || []).find((s) => s.code === "SHARED_DEVICE")) parts.push("one device was shared across accounts");
+  if ((c.signals || []).find((s) => s.code === "RING_MEMBER")) parts.push("that device is tied to known fraud");
+  const kyc = (c.signals || []).find((s) => s.code === "BUSINESS_KYC");
   if (kyc) parts.push("the receiver is a verified business");
+  if (!parts.length && (c.alert || []).length) {
+    const t = TYPE_PLAIN[c.alert[0].type];
+    if (t) parts.push("the alert said: " + t.toLowerCase());
+  }
   const cited = (d.cites || []).some((x) => x.applies);
   const corrected = (d.cites || []).some((x) => (x.distinguishing || []).length === 0 && !x.applies);
-  const mem = cited
-    ? "The desk's memory of past cases shaped this."
-    : corrected
-      ? "A past case was corrected before, so the desk wants a human to decide."
-      : "The desk decided without clear memory guidance.";
+  const receipted = !!d.receipt && d.action === "clear";
+  const mem = receipted
+    ? "The receipt of checks proved it clean, so the desk cleared it itself."
+    : cited
+      ? "The desk's memory of past cases shaped this."
+      : corrected
+        ? "A past case was corrected before, so the desk wants a human to decide."
+        : (d.action === "freeze"
+            ? "The raw pattern alone was strong enough to act without memory."
+            : "The desk decided without clear memory guidance.");
   return `${act}. Why: ${parts.join(" · ") || "the account's own history"}. ${mem}`;
 }
 
@@ -180,23 +183,35 @@ function renderCase(c, runRes) {
         ${ct.distinguishing && ct.distinguishing.length ? `<span class="dist">different because: ${esc(ct.distinguishing.map((s) => SIG_PLAIN[s] || s).join("; "))}</span>` : (ct.applies ? "" : `<span class="dist">(no reason recorded)</span>`)}</div></div>`).join("");
     const ov = x.overridden_by.map((o) =>
       `<div class="dist">⚠ a human corrected this one — “${esc(o.reason)}”</div>`).join("");
+    const rc = (x.action === "clear" && x.receipt)
+      ? `<div class="dist">🧾 cleared with a replayable receipt — every dangerous connection checked, none exists.</div>`
+      : "";
     return `<div class="card">
       <h3>Decision · ${esc(fmtDate(x.ts))} · by ${x.decided_by === "agent" ? "the AI investigator" : "a human analyst"}</h3>
       ${badge(x.action)} <span class="muted">${esc(ACTION_PLAIN[x.action] || x.action)} · AI's opinion: ${esc(VERDICT_PLAIN[x.verdict] || x.verdict)} · ${Math.round((x.confidence || 0) * 100)}% sure</span>
       <div class="bar"><div style="width:${Math.round((x.confidence || 0) * 100)}%"></div></div>
-      ${cites}${ov}
+      ${rc}${cites}${ov}
     </div>`;
   }).join("");
+
+  const queue = c.assigned_to
+    ? `<div class="muted">Queued to <b>${esc(c.assigned_to.analyst)}</b> — ${esc(c.assigned_to.desk_reason || "assigned by rule")}</div>`
+    : "";
 
   const holder = (id) => {
     const s = c.scope.find((x) => x.account === id);
     return s ? scopeName(s) : id;
   };
-  const ev = c.evidence.length
-    ? `<ol class="evidence">${c.evidence.map((e) =>
-        `<li title="${esc(e.tool)} · ${esc(e.query_id)}">${esc(TOOL_PLAIN[e.tool] || e.tool)}
-         <span class="q">(re-runnable · as of ${esc(fmtDate(e.as_of))})</span></li>`).join("")}</ol>`
-    : '<span class="muted">no evidence links yet</span>';
+  const evRows = c.evidence.map((e) =>
+    `<li title="${esc(e.tool)} · ${esc(e.query_id)}">${esc(TOOL_PLAIN[e.tool] || e.tool)}
+     <span class="q">(re-runnable · as of ${esc(fmtDate(e.as_of))})</span></li>`).join("");
+  const evReceipt = (d && d.receipt && d.action === "clear")
+    ? `<li>🧾 the clearance receipt — the same checks can be re-run any time
+         <span class="q">(as of ${esc(fmtDate(d.receipt.as_of))})</span></li>`
+    : "";
+  const ev = (evRows || evReceipt)
+    ? `<ol class="evidence">${evRows}${evReceipt}</ol>`
+    : '<span class="muted">no links stored yet</span>';
 
   const fr = c.freeze_orders.map((f) =>
     `<div class="card"><h3>Blocked</h3>
@@ -221,7 +236,7 @@ function renderCase(c, runRes) {
       <div class="pillbar">${scope || "—"}</div>
       <div class="hint">The account that received the money, plus the people paying it. Hover any chip for its exact id.</div></div>
     <div class="card"><h3>What the pattern looks like (measured by fixed rules — no AI here)</h3><div class="pillbar">${sig}</div></div>
-    ${acts}${fr}
+    ${acts}${fr}${queue}
     <div class="card"><h3>What the agent asked the graph (each answer re-runnable later)</h3>${ev}</div>
     <div class="card"><h3>Cost</h3><div class="muted">${c.tokens.in + c.tokens.out} tokens of AI thinking — logged, auditable</div></div>`;
 

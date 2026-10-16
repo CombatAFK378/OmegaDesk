@@ -70,11 +70,12 @@ def main():
     make_test_case(g, "TEST-C2", ["A-002"], ["PASS_THROUGH", "NEW_ACCOUNT"],
                    "2026-02-06T04:10")
 
-    print("--- registry (v2 §9) ---")
+    print("--- registry (v2 §9 + C3) ---")
     names = sorted(TOOL_REGISTRY)
-    check("registry = core-4 + whitelist (all read)",
+    check("registry = core-4 + whitelist + C3 tools (all read)",
           names == ["find_precedents", "find_shared_entities", "get_case_context",
-                    "run_cypher_readonly", "trace_money_path"]
+                    "hub_centrality", "prove_absence", "run_cypher_readonly",
+                    "trace_money_path"]
           and all(t.kind == "read" for t in TOOL_REGISTRY.values()), f"got {names}")
     check("write tools are gone (policy engine is code — §5/§10)",
           "freeze_account" not in TOOL_REGISTRY and not any(

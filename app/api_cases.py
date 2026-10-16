@@ -82,10 +82,19 @@ def case_detail(case_id: str):
                                  RETURN s.code, s.polarity, ex.value, ex.as_of
                                  ORDER BY s.polarity, s.code""", cid)]
     decisions = []
-    for d_id, d_ts, verdict, action, conf, who, reason in _rows(
+    for (d_id, d_ts, verdict, action, conf, who, reason,
+         r_dig, r_asof, r_checks) in _rows(
             """MATCH (d:Decision)-[:FOR_CASE]->(c:Case {id:$cid})
-               RETURN d.id, d.ts, d.verdict, d.action, d.confidence, d.decided_by, d.rationale
+               RETURN d.id, d.ts, d.verdict, d.action, d.confidence, d.decided_by, d.rationale,
+                      d.receipt_digest, d.receipt_as_of, d.receipt_checks
                ORDER BY d.ts""", cid):
+        receipt = None
+        if r_dig:
+            try:
+                receipt = {"digest": r_dig, "as_of": r_asof,
+                           "checks": json.loads(r_checks)}
+            except (TypeError, json.JSONDecodeError):
+                receipt = None
         cites = [{"decision_id": r[0], "applies": r[1],
                   "distinguishing": json.loads(r[2]) if r[2] else []}
                  for r in _rows("""MATCH (d2:Decision {id:$did})-[c:CITES]->(pd:Decision)
@@ -96,7 +105,8 @@ def case_detail(case_id: str):
                                        RETURN ov.id, o.reason""", {"did": d_id})]
         decisions.append({"decision_id": d_id, "ts": d_ts, "verdict": verdict,
                           "action": action, "confidence": conf, "decided_by": who,
-                          "rationale": reason, "cites": cites, "overridden_by": overrides})
+                          "rationale": reason, "cites": cites,
+                          "overridden_by": overrides, "receipt": receipt})
     freezes = [{"order": r[0], "ts": r[1], "account": r[2], "issued_by": r[3]}
                for r in _rows("""MATCH (c:Case {id:$cid})<-[:FOR_CASE]-(d:Decision),
                           (fo:FreezeOrder)-[:ISSUED_BY]->(d),
@@ -108,6 +118,11 @@ def case_detail(case_id: str):
                                   RETURN ev.query_id, ev.tool, ev.args, n.id, ev.as_of
                                   ORDER BY ev.query_id""", cid)]
     spend = {"in": 0, "out": 0, "llm_runs": 0}
+    assigned = [{"analyst": r[0], "desk_reason": r[1]}
+                for r in _rows("""MATCH (c:Case {id:$cid})-[ra:ASSIGNED_TO]->(an:Analyst)
+                                  RETURN an.id, ra.reason
+                                  ORDER BY ra.ts DESC LIMIT 1""",
+                               cid)]
     if JOURNAL_PATH.exists():
         for line in JOURNAL_PATH.read_text().splitlines():
             try:
@@ -123,7 +138,8 @@ def case_detail(case_id: str):
                 spend["llm_runs"] += 1
     return {"case_id": case_id, "status": row[0][1], "created_at": row[0][2],
             "alert": alert, "scope": scope, "signals": signals, "decisions": decisions,
-            "freeze_orders": freezes, "evidence": evidence, "tokens": spend}
+            "freeze_orders": freezes, "evidence": evidence, "tokens": spend,
+            "assigned_to": assigned[0] if assigned else None}
 
 
 # ---------------------------------------------------------------- investigate

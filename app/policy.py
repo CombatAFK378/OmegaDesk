@@ -29,7 +29,8 @@ REG_BY_SIGNAL = {
 def decide_action(confidence, has_mitigating=False, has_aggravating=True,
                   absence_proven=False):
     """§10 table:
-    - clear only with proof-of-absence + mitigating + zero aggravating
+    - clear only with proof-of-absence + mitigating evidence + no unexplained
+      aggravating pattern (the receipt's semantic: the shape counts as explained)
     - ≥0.85 → freeze, UNLESS an applicable mitigating precedent exists → escalate
     - 0.60–0.85 → escalate (human review)
     - <0.60 → monitor only
@@ -46,15 +47,20 @@ def decide_action(confidence, has_mitigating=False, has_aggravating=True,
 def precedent_action_guard(action, cited_precedents, absence_proven=False,
                            corrected_cited=False, valid_distinguish=False):
     """§10/§11 safety rules, deterministic:
-    - 'clear' can never ride a precedent (needs own absence-proof)
-    - a freeze suggested beside an override-cleared twin → escalate (pillar 4:
-      overrides only move actions toward human review)
+    - 'clear' can never ride a precedent — EXCEPT with the case's own
+      proof-of-absence receipt (then the clearance is evidence-backed, §16 C3)
+    - a freeze beside an override-cleared twin → escalate (pillar 4: overrides
+      only move actions toward human review)
+    - a frozen-block suggestion dies when the clearance-citation exists without
+      the case's own receipt
     - BUT a catalog-code distinction (e.g. BUSINESS_KYC absent where the cleared
       twin had it) lets evidence decide — §11's D story."""
     cited_actions = {p.get("action", "") for p in (cited_precedents or [])}
-    if action == "clear" and (cited_precedents or not absence_proven):
+    if action == "clear" and cited_precedents and not absence_proven:
         return "escalate"
-    if action in ("clear", "freeze") and "clear" in cited_actions and not absence_proven:
+    if action == "clear" and not absence_proven:
+        return "escalate"
+    if action == "freeze" and "clear" in cited_actions and not absence_proven:
         return "escalate"
     if action == "freeze" and corrected_cited and not valid_distinguish:
         return "escalate"

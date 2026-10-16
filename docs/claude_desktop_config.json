@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "omegadesk": {
+      "command": "/ABSOLUTE/PATH/to/OmegaDesk/.venv/bin/python",
+      "args": ["-m", "app.mcp_server"],
+      "env": {
+        "FALKORDB_PORT": "6380",
+        "GRAPH_NAME": "desk",
+        "LLM_BASE_URL": "https://ollama.com/v1",
+        "LLM_API_KEY": "your-key",
+        "LLM_MODEL": "gpt-oss:120b"
+      }
+    }
+  }
+}

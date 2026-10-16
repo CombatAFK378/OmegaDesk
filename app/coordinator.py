@@ -11,6 +11,7 @@ from .graph import get_graph
 from .investigator import investigate_case
 from .journal import journal
 from .policy import REG_BY_SIGNAL, decide_action, precedent_action_guard
+from .routing import route_case
 from .signals import POLARITY, _sim_now, extract_signals
 from openai import BadRequestError, OpenAIError
 
@@ -159,7 +160,19 @@ def _run_pipeline(case_id, ablated, client, g):
 
     cited = _cited_precedent_actions(g, inv.get("precedents"))
     mitigation = _has_mitigating_precedent(g, inv.get("precedents"))
-    has_aggravating = any(s["polarity"] == "aggravating" for s in fired)
+    has_mitigating_signal = any(s["polarity"] == "mitigating" for s in fired)
+    # proof-of-absence (§16 C3): a DETERMINISTIC receipt, not a model judgment —
+    # the pipeline runs it itself when the case carries mitigating evidence;
+    # the agent may also call it via its tools (that result merges here).
+    from .tools.absence import prove_absence as _prove
+    receipt = next((c["result"] for c in inv.get("calls", [])
+                    if c.get("tool") == "prove_absence" and (c.get("result") or {}).get("receipt")),
+                   None)
+    if receipt is None and has_mitigating_signal:
+        result = _prove(case_id)
+        receipt = result if result and result.get("receipt") else None
+    absence_proven = bool(receipt)
+    has_aggravating = any(s["polarity"] == "aggravating" for s in fired) and not absence_proven
     # twin-rule inputs (§11 C′/E vs D): which cited decisions are corrections,
     # and did the investigator prove a CATALOG-CODE distinction
     model_precedents = inv.get("precedents") or []
@@ -173,11 +186,15 @@ def _run_pipeline(case_id, ablated, client, g):
         not p.get("applies") and
         any(s in POLARITY for s in p.get("distinguishing_signals") or [])
         for p in model_precedents)
-    action = decide_action(inv.get("confidence", 0.0), has_mitigating=mitigation,
-                           has_aggravating=has_aggravating, absence_proven=False)
-    action = precedent_action_guard(action, cited, corrected_cited=bool(corrected_ids),
+    action = decide_action(inv.get("confidence", 0.0),
+                           has_mitigating=has_mitigating_signal if absence_proven else mitigation,
+                           has_aggravating=has_aggravating, absence_proven=absence_proven)
+    action = precedent_action_guard(action, cited, absence_proven=absence_proven,
+                                    corrected_cited=bool(corrected_ids),
                                     valid_distinguish=valid_distinguish)
     verdict = inv.get("verdict", "unclear")
+    if action == "clear":
+        verdict = "legit"   # code's authority: a receipt-backed clearance IS a legit finding
 
     top = next((s["code"] for s in fired if s["polarity"] == "aggravating"), None)
     reg = REG_BY_SIGNAL.get(top) if top else None  # citation (§10)
@@ -230,11 +247,24 @@ def _run_pipeline(case_id, ablated, client, g):
                CREATE (fo)-[:FREEZES {ts:$ts}]->(target)
                CREATE (fo)-[:ISSUED_BY {ts:$ts}]->(dec)""",
             {"cid": case_id, "did": dec_id, "fid": f"FO-{seq:04d}", "ts": _now()})
+    if receipt:   # the clearance rides its own receipt — stored ON the decision
+        g.query(
+            """MATCH (d:Decision {id:$did}), (c:Case {id:$cid})
+               SET d.receipt_digest = $dg, d.receipt_as_of = $rasof,
+                   d.receipt_checks = $rchecks, c.status = 'closed',
+                   c.closed_at = $ts""",
+            {"did": dec_id, "cid": case_id, "dg": receipt["digest"],
+             "rasof": receipt["as_of"], "ts": _now(),
+             "rchecks": json.dumps(receipt["checks"])})
+    routed = route_case(case_id, fired, g)
     journal("policy", "decision", case_id=case_id, decision_id=dec_id, verdict=verdict,
             outcome=action, confidence=inv.get("confidence"),
-            mitigating_precedent=mitigation, cited=cited, tokens=inv.get("tokens"))
+            mitigating_precedent=mitigation, cited=cited, tokens=inv.get("tokens"),
+            absence_receipt=bool(receipt), assigned_to=routed["analyst"])
     return {"case_id": case_id, "dec_id": dec_id, "verdict": verdict, "action": action,
             "confidence": inv.get("confidence", 0.0), "cited": cited,
+            "absence_receipt": receipt, "assigned_to": routed["analyst"],
+            "desk": routed["desk"],
             "cited_all": sorted({p.get("decision_id") for p in inv.get("precedents", [])
                                  if p.get("decision_id")}),
             "tool_sequence": inv.get("tool_sequence"), "tokens": inv.get("tokens"),

@@ -144,7 +144,8 @@ def main():
               and (ROOT / "docker-compose.yml").exists())
         check("requirements.txt parses + covers the app imports",
               all(pkg.split(">")[0].split("[")[0] in ("fastapi", "uvicorn", "falkordb",
-                                                      "openai", "python-dotenv", "redis")
+                                                      "openai", "python-dotenv", "redis",
+                                                      "networkx", "mcp")
                   for line in (ROOT / "requirements.txt").read_text().splitlines()
                   if line and not line.startswith("#")
                   for pkg in [line]))

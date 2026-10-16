@@ -4,3 +4,5 @@ falkordb>=1.4
 openai>=1.60
 python-dotenv>=1.0
 redis>=5.0
+networkx>=3.0
+mcp>=1.9,<2
