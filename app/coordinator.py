@@ -190,7 +190,7 @@ def _run_pipeline(case_id, ablated, client, g):
                      policy_version:'v2.1'})-[:FOR_CASE {ts:$ts}]->(c)""",
         {"cid": case_id, "did": dec_id, "ts": _now(), "verdict": verdict,
          "action": action, "conf": inv.get("confidence", 0.0),
-         "reason": inv.get("rationale", "")[:300]})
+         "reason": inv.get("rationale", "")})
     # citation record per §6: Decision-[:CITES {applies, distinguishing}]->precedent-Decision
     for p in inv.get("precedents", []):
         pid = p.get("decision_id")

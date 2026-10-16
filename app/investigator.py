@@ -232,7 +232,8 @@ def investigate_case(case_id, client=None):
         "precedents": [], "rationale": "investigator could not produce a structured verdict"}
 
     journal("investigator", "llm_run", case_id=case_id, tokens={"in": tokens_in, "out": tokens_out},
-            tool_sequence=seq, verdict=verdict["verdict"], confidence=verdict.get("confidence"))
+            tool_sequence=seq, verdict=verdict["verdict"], confidence=verdict.get("confidence"),
+            rationale=verdict.get("rationale", ""))
     total = tokens_in + tokens_out
     if total > 2500:
         time.sleep(20)  # token-pace: stay under groq's 8k TPM for the runner

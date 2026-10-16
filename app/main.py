@@ -1,15 +1,22 @@
-"""OmegaDesk FastAPI service. Phase 0: health endpoints only — API surface
-grows phase by phase (§17)."""
+"""OmegaDesk FastAPI service. API surface grows phase by phase (§17):
+Phase 0 health · sim · monitor · C1 · C2 desk API + served UI at /. """
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
+from .api_cases import router as cases_router
 from .config import GRAPH_NAME, LLM_MODEL
 from .graph import get_graph
 from .monitor import scan_once
 from sim.api import router as sim_router
 
-app = FastAPI(title="OmegaDesk", version="0.1.0")
+UI_DIR = Path(__file__).resolve().parent.parent / "ui"
+
+app = FastAPI(title="OmegaDesk", version="0.2.0")
 app.include_router(sim_router)
+app.include_router(cases_router)
 
 
 @app.get("/health")
@@ -46,3 +53,15 @@ def monitor_alerts():
     ).result_set
     return {"alerts": [{"id": r[0], "type": r[1], "target": r[2],
                         "created_at": r[3]} for r in rows]}  # v2: Alert has no status field
+
+
+if UI_DIR.exists():
+    app.mount("/app", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    if (UI_DIR / "index.html").exists():
+        return JSONResponse({"desk_ui": "/app/index.html", "docs": "/docs",
+                             "note": "the desk UI is mounted at /app"})
+    return {"status": "ok", "docs": "/docs"}

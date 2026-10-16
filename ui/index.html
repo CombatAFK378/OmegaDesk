@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OmegaDesk — AML investigation desk</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">◎</span> OmegaDesk <span class="sub">AML investigation desk</span></div>
+  <div class="health" id="health">checking graph…</div>
+  <div class="model" id="model"></div>
+</header>
+
+<main>
+  <!-- LEFT: alerts -->
+  <section class="col left">
+    <div class="col-head">
+      <h2>Alerts</h2>
+      <button id="refresh" class="ghost">↻ refresh</button>
+    </div>
+    <div id="alerts" class="alert-list"><div class="muted">loading…</div></div>
+    <div class="hint">Suspicious patterns the automatic monitor caught. Pick one → investigate.</div>
+  </section>
+
+  <!-- RIGHT: case -->
+  <section class="col right">
+    <div class="col-head">
+      <h2>Case</h2>
+      <div id="case-id" class="muted">no case open</div>
+    </div>
+
+    <div class="toolbar">
+      <button id="investigate" class="primary" disabled>▣ Investigate selected alert</button>
+      <label class="chk"><input type="checkbox" id="ablated"> without memory (ablated)</label>
+      <span id="inv-status" class="muted"></span>
+    </div>
+
+    <div id="case-body"><div class="muted">Pick an alert on the left, then press Investigate.<br>
+      The desk opens a case, measures the pattern with fixed rules, and the AI investigator reads the evidence and past cases before giving its opinion.</div></div>
+
+    <div class="col-head over"><h2>Human override</h2><span class="muted">the analyst's correction becomes a lesson for future cases</span></div>
+    <form id="override-form">
+      <div class="row">
+        <select id="analyst">
+          <option value="AN-PRIYA">AN-PRIYA</option>
+          <option value="AN-DEV">AN-DEV</option>
+        </select>
+        <select id="action">
+          <option>clear</option>
+          <option>escalate</option>
+          <option>monitor</option>
+          <option>freeze</option>
+        </select>
+      </div>
+      <textarea id="reason" rows="2" placeholder="required — a correction without a written reason is not recorded"></textarea>
+      <button id="override-btn" class="warn" type="submit" disabled>⚖ record override</button>
+      <div id="override-note" class="muted"></div>
+    </form>
+  </section>
+</main>
+
+<!-- BENCHMARK drawer -->
+<section id="benchmark" class="hidden">
+  <div class="col-head">
+    <h2>The proof — same cases, with and without the desk's memory</h2>
+    <div><button id="bench-load" class="ghost">load last report</button><button id="bench-close" class="ghost">✕</button></div>
+  </div>
+  <div id="bench-body"><div class="muted">Run the benchmark once (scripts/c1_exit_test.py), then load it here.</div></div>
+</section>
+
+<footer>
+  <button id="bench-open" class="ghost">📊 the with/without proof</button>
+  <span class="muted">Every decision is stored in the graph with its evidence — reproducible, not vibes.</span>
+</footer>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
