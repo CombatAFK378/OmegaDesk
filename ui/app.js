@@ -3,6 +3,35 @@
 const $ = (id) => document.getElementById(id);
 let selectedAlert = null;
 let currentCase = null;
+let currentReport = null;
+async function writeReport() {
+  if (!currentCase || busy) return;
+  busy = true;
+  toast("writing the case report — one AI call…");
+  try {
+    currentReport = await api(`/cases/${currentCase}/report`, { method: "POST" });
+    const c = await api(`/cases/${currentCase}`);
+    renderCase(c);
+    toast("report ready — with every source named");
+  } catch (e) { toast(`report: ${e.message}`, true); }
+  finally { busy = false; wireButtons(); }
+}
+async function simToggle() {
+  const b = $("sim-live");
+  const stopping = b.dataset.on === "1";
+  try {
+    await api(stopping ? "/sim/stop" : "/sim/start?interval=2", { method: "POST" });
+    b.dataset.on = stopping ? "0" : "1";
+    b.textContent = stopping ? "▶ make alerts stream live" : "⏹ stop the live stream";
+    toast(stopping ? "live stream stopped" : "the world is live — new alerts arrive by themselves", !stopping);
+  } catch (e) { toast(`sim: ${e.message}`, true); }
+}
+function wireButtons() {
+  const rb = $("report-btn");
+  if (rb) rb.addEventListener("click", writeReport);
+  const sb = $("sim-live");
+  if (sb) sb.addEventListener("click", simToggle);
+}
 
 /* ---------- helpers ---------- */
 async function api(path, opts) {
@@ -89,6 +118,7 @@ async function investigate() {
     $("investigate").disabled = !selectedAlert;
     $("override-btn").disabled = !currentCase;
     $("inv-status").textContent = "";
+    wireButtons();
   }
 }
 
@@ -229,6 +259,12 @@ function renderCase(c, runRes) {
          <div class="aitt">“${esc(d.rationale || "—")}”</div>
          <div class="hint">This is the agent's own written reasoning — exactly as stored in the decision (replayable in the graph).</div></div>`
     : "";
+  const repCard = (c.report || currentReport)
+    ? `<div class="card rep"><h3>📄 Case report — written by the AI, sources checked</h3>
+         <div class="rept">${esc((currentReport && currentReport.report) || c.report.body)}</div>
+         <div class="hint">sources: <span class="q">${esc((currentReport && currentReport.sources || []).join(" · ") || "stored on the case")}</span></div>
+         <a class="dl" href="/cases/${esc(c.case_id)}/report.md" download>⬇ download the report</a></div>`
+    : "";
   $("case-body").innerHTML = `
     ${short ? `<div class="card headline"><h3>In short</h3><div class="shortt">${esc(short)}</div></div>` : ""}
     ${aiVoice}
@@ -238,10 +274,19 @@ function renderCase(c, runRes) {
     <div class="card"><h3>What the pattern looks like (measured by fixed rules — no AI here)</h3><div class="pillbar">${sig}</div></div>
     ${acts}${fr}${queue}
     <div class="card"><h3>What the agent asked the graph (each answer re-runnable later)</h3>${ev}</div>
-    <div class="card"><h3>Cost</h3><div class="muted">${c.tokens.in + c.tokens.out} tokens of AI thinking — logged, auditable</div></div>`;
+    <div class="card"><h3>Cost</h3><div class="muted">${c.tokens.in + c.tokens.out} tokens of AI thinking — logged, auditable</div></div>
+    ${repCard}
+    <div class="row btns"><button id="report-btn" class="ghost" ${busy ? "disabled" : ""}>📄 write the case report (one AI call)</button>
+    <button id="sim-live" class="ghost">▶ make alerts stream live</button></div>`;
 
   if (runRes) {
     $("case-body").insertAdjacentHTML("beforeend", ablateNote(runRes.ablated, d));
+  }
+  wireButtons();   // every re-render (override refresh, report reload) re-binds the fresh buttons
+  if (c.case_id) {           // an open case on screen = the desk's buttons work for it
+    currentCase = c.case_id;
+    $("override-btn").disabled = false;
+    $("case-id").textContent = "case " + c.case_id;
   }
 }
 function ablateNote(ablated, d) {

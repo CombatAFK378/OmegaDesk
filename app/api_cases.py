@@ -21,6 +21,7 @@ from .coordinator import handle_alert, handle_direct_case
 from .graph import get_graph
 from .journal import JOURNAL_PATH
 from .policy import record_override
+from .reports import build_report
 
 router = APIRouter(prefix="", tags=["desk"])
 
@@ -136,10 +137,14 @@ def case_detail(case_id: str):
                 spend["in"] += t.get("in", 0)
                 spend["out"] += t.get("out", 0)
                 spend["llm_runs"] += 1
+    rep_rows = _rows("""MATCH (r:Report)-[:REPORTS]->(:Case {id:$cid})
+                       RETURN r.body, r.ts, r.model""", cid)
     return {"case_id": case_id, "status": row[0][1], "created_at": row[0][2],
             "alert": alert, "scope": scope, "signals": signals, "decisions": decisions,
             "freeze_orders": freezes, "evidence": evidence, "tokens": spend,
-            "assigned_to": assigned[0] if assigned else None}
+            "assigned_to": assigned[0] if assigned else None,
+            "report": ({"body": rep_rows[0][0], "ts": rep_rows[0][1],
+                        "model": rep_rows[0][2]} if rep_rows else None)}
 
 
 # ---------------------------------------------------------------- investigate
@@ -185,6 +190,35 @@ def case_override(case_id: str, body: OverrideBody):
     return {"ok": True, "case_id": case_id, **res,
             "note": "the corrected decision is now precedent for the next twin — and "
                     "the overruled one is never citable again"}
+
+
+# ---------------------------------------------------------------- report (C4)
+@router.post("/cases/{case_id}/report")
+def case_report(case_id: str):
+    """ONE LLM call: the whole case → a plain-language report with a sources list."""
+    try:
+        facts = case_detail(case_id)
+        return build_report(case_id, facts)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(503, f"report unavailable: {str(exc)[:160]}")
+
+
+@router.get("/cases/{case_id}/report.md")
+def report_markdown(case_id: str):
+    """The stored report as a downloadable file (markdown, sources included)."""
+    g = get_graph()
+    row = g.query(
+        "MATCH (r:Report)-[:REPORTS]->(:Case {id:$cid}) RETURN r.body",
+        {"cid": case_id}).result_set
+    if not row:
+        raise HTTPException(404, f"no report stored for {case_id!r} — generate one first")
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(
+        f"# OmegaDesk case report — {case_id}\n\n{row[0][0]}\n",
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{case_id}-report.md"'})
 
 
 # ---------------------------------------------------------------- benchmark

@@ -84,6 +84,12 @@ button.ghost { background: transparent; font-size: 12px; padding: 4px 10px; }
 .card.ai-voice { border-color: #34457a; background: #10131e; }
 .card.ai-voice h3 { color: #9db4ff; }
 .aitt { font-size: 14px; line-height: 1.6; color: var(--text); font-style: italic; }
+.card.rep { border-color: #2c4a34; }
+.card.rep h3 { color: #b7e4c7; }
+.rept { font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+a.dl { display: inline-block; margin-top: 8px; color: var(--accent); font-size: 12.5px; text-decoration: none; border: 1px solid var(--line); padding: 5px 10px; border-radius: 8px; }
+a.dl:hover { border-color: var(--accent); }
+.row.btns { display: flex; gap: 10px; margin-top: 4px; }
 details.whyr { margin-top: 8px; }
 details.whyr summary {
   cursor: pointer; color: var(--accent); font-size: 12.5px;
