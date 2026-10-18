@@ -1,4 +1,4 @@
-"""C1 — the pre-registered with/without benchmark (v2.1 §12). The PROOF.
+"""C1 — the with/without benchmark (v2.1 §12). The PROOF.
 
 Each listed case runs TWO investigations in one deterministic world:
   with    — precedent tool ON  (the desk remembers)
@@ -22,7 +22,8 @@ from .signals import extract_signals
 from sim.generator import inject_scenario_a, inject_scenario_b, inject_scenario_c
 from sim.injectors_c1 import inject_scenario_c_prime, inject_scenario_d, inject_scenario_e
 
-# ---- pre-registered expectations (re-registered at calibration; the FINAL run decides) ----
+# ---- expected outcomes, written here before the run (calibrated once during development; the
+# committed benchmark_report.json is the final run, misses included) ----
 EXPECTED = {
     "A":  {"target": "A-EXIT", "inject": inject_scenario_a,
            "with": "freeze", "without": "freeze", "must_cite": "D-2025-0417"},

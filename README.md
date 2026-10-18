@@ -9,6 +9,18 @@ first-class graph node with a replayable evidence chain.
 > the graph, overruled precedents are never cited again, and a with/without benchmark proves the
 > graph changed the decision.
 
+## Submission — Graph Hacks (WeMakeDevs × FalkorDB)
+
+| | |
+|---|---|
+| **Tracks entered** | **01 Agents That Act on Connected Data** (primary) · 02 Agent Memory and Coordination · 03 Company Brain |
+| **Demo video** | TODO: add link (YouTube unlisted / public Drive) |
+| **Deployment** | local setup — full instructions below (fresh clone → working desk in ~5 min) |
+| **Graph model** | [The graph model](#the-graph-model-v21-6) below |
+| **Cypher queries** | [`queries/`](queries/) + inline in `app/` (signals, tools, proof-of-absence) |
+| **Benchmark result** | [`benchmark_report.json`](benchmark_report.json) — committed, also shown in the UI footer |
+| **AI-use disclosure** | [Where the "AI" is](#where-the-ai-is-disclosure-per-event-rules-1213) |
+
 ---
 
 ## Setup — fresh clone to working desk
@@ -39,7 +51,7 @@ Then open:
 | `http://localhost:8000/docs` | Swagger for every endpoint (incl. the LLM ones) |
 | `http://localhost:3000` | FalkorDB Browser — host `host.docker.internal`, port `6380`, graph `desk` |
 
-Environment (`~/omegadesk/.env`) — never commit it:
+Environment (`.env` in the repo root, copied from `.env.example`) — never commit it:
 
 ```
 FALKORDB_PORT=6380
@@ -79,7 +91,7 @@ The with/without proof — the benchmark (§12):
 python scripts/c1_exit_test.py       # 12 LLM investigations; writes benchmark_report.json
 ```
 
-Then **📊 with/without benchmark** in the UI footer shows the pre-registered table, per-case
+Then **📊 with/without benchmark** in the UI footer shows the expected-vs-actual table, per-case
 tokens, the decisions memory changed, and every miss.
 
 ## The graph model (v2.1, §6)
@@ -112,11 +124,20 @@ memory lineage (citations + overrides), evidence replay.
 
 ## Pre-event note (Rule 8)
 
-The event's coding window opened **Oct 15, 00:01 IST**. Before that: concept notes, the graph
-model sketch and Docker/installer setup only (this repo's Phase-0 skeleton + seed were built
-as environment-level work then; the v2.1 rebuild — transaction-node model, decision memory,
-precedent tools, benchmark — started Oct 15 with the coding window). **This README's setup was
-written to be followed from a fresh clone.**
+The event's coding window opened **Oct 15, 00:01 IST**. Stated plainly, so judges can check it
+against the git history:
+
+- **Before the window:** concept notes and a graph-model sketch (not in this repo), plus two
+  commits on **Oct 14** (`bdcf2e4`, `e442973`): the environment skeleton — Docker compose for
+  FalkorDB, `.env` config, the graph connection, a `/health` endpoint — and a first seed with
+  its exit test.
+- **What survives from them:** ~280 of ~7,100 lines (≈4%), mostly config/connection code and
+  parts of `seed/` and the Phase 0/1 tests (`git blame` shows exactly which).
+- **Everything that makes the product** — the Transaction-node model, signals, decision memory and
+  precedents, the Investigator, policy engine, proof-of-absence, benchmark, MCP server, UI — was
+  built from **Oct 15** onward, in the commits that follow.
+
+**This README's setup was written to be followed from a fresh clone.**
 
 ## Testing
 
@@ -130,6 +151,8 @@ Test counts are exact asserts, never "looks about right."
 
 ## Notes
 
+- `§` numbers in this README and the code refer to sections of the team's internal design doc,
+  which is not published; everything they describe is implemented and tested here.
 - FalkorDB binds host **6380** (compose maps `6380:6379`) so it never collides with a local
   Redis on 6379.
 - `journal.jsonl` is the desk's audit log (who called what, when, why) — read it live:

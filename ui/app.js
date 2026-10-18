@@ -748,11 +748,11 @@ async function benchLoad() {
       <div class="metrics">
         <div class="metric"><b class="cnt" data-to="${ran.length}">0</b><span>cases run both ways</span></div>
         <div class="metric hi"><b class="cnt" data-to="${changed.size}">0</b><span>decisions changed by memory</span></div>
-        <div class="metric"><b><span class="cnt" data-to="${matched}">0</span><span class="muted" style="font-size:20px"> / ${ran.length}</span></b><span>matched the pre-registered outcome</span></div>
+        <div class="metric"><b><span class="cnt" data-to="${matched}">0</span><span class="muted" style="font-size:20px"> / ${ran.length}</span></b><span>matched the expected outcome</span></div>
       </div>
-      <div class="table-wrap"><table><thead><tr><th>case</th><th>with memory</th><th>without</th><th>cited</th><th>vs pre-registered</th><th>pacing</th></tr></thead>
+      <div class="table-wrap"><table><thead><tr><th>case</th><th>with memory</th><th>without</th><th>cited</th><th>vs expected</th><th>pacing</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-      <div class="hint">Outcomes were pre-registered before the run; every miss is reported (§12).</div>`;
+      <div class="hint">Expected outcomes are written in app/benchmark.py before the run (calibrated once during development); every miss is reported.</div>`;
     body.querySelectorAll(".cnt").forEach((el) => countUp(el, +el.dataset.to, 900));
   } catch (e) {
     body.innerHTML = `<div class="empty-list">No benchmark report yet.<br>Run <span class="mono">scripts/c1_exit_test.py</span> once, then reload.<div class="hint">${esc(e.message)}</div></div>`;
