@@ -9,12 +9,32 @@ first-class graph node with a replayable evidence chain.
 > the graph, overruled precedents are never cited again, and a with/without benchmark proves the
 > graph changed the decision.
 
+## What it does, in plain words
+
+Banks have analysts who check suspicious payments. When a case is closed, the *reason* behind the
+decision usually gets lost — so next week the same pattern starts from zero, and a wrong freeze can
+repeat. OmegaDesk keeps that memory in a graph:
+
+1. **Fixed rules watch the money** — many people paying one account, payments kept just under the
+   ₹50,000 reporting line, money leaving too fast, one device on many accounts.
+2. **A case opens with everyone involved** — the receiver, the payers, the devices they share.
+3. **An AI agent investigates** — it asks the graph questions (*who else uses this device? where did
+   the money go?*) and reads past decisions and analyst corrections.
+4. **Fixed rules, not the AI, decide** — freeze, send to a human, or watch. Clearing someone needs a
+   fresh, re-checkable proof.
+5. **Analyst corrections become lessons** — the reason is saved in the graph, later cases cite it,
+   and the wrong decision is never used again.
+
+People, accounts, money, devices, cases, decisions and corrections all live in one FalkorDB graph.
+All data is synthetic.
+
 ## Submission — Graph Hacks (WeMakeDevs × FalkorDB)
 
 | | |
 |---|---|
 | **Tracks entered** | **01 Agents That Act on Connected Data** (primary) · 02 Agent Memory and Coordination · 03 Company Brain |
-| **Demo video** | TODO: add link (YouTube unlisted / public Drive) |
+| **Demo video** | [youtu.be/cW1pdClr3EA](https://youtu.be/cW1pdClr3EA) |
+| **Blog post** | [We built a fraud desk that never forgets](https://dev.to/shashank_upadhyay_9dbdd70/we-built-a-fraud-desk-that-never-forgets-2lbd) (dev.to) |
 | **Deployment** | local setup — full instructions below (fresh clone → working desk in ~5 min) |
 | **Graph model** | [The graph model](#the-graph-model-v21-6) below |
 | **Cypher queries** | [`queries/`](queries/) + inline in `app/` (signals, tools, proof-of-absence) |
@@ -25,8 +45,8 @@ first-class graph node with a replayable evidence chain.
 
 ## Setup — fresh clone to working desk
 
-Prereqs: **Docker**, **Python 3.11+**, one OpenAI-compatible LLM key (Groq free tier or an
-[Ollama](https://ollama.com) cloud key both work).
+Prereqs: **Docker**, **Python 3.11+**, one OpenAI-compatible LLM key — a free
+[Groq key](https://console.groq.com/keys) or an [Ollama](https://ollama.com) cloud key both work.
 
 ```bash
 git clone https://github.com/CombatAFK378/OmegaDesk.git
@@ -47,6 +67,7 @@ Then open:
 
 | URL | what |
 |---|---|
+| `http://localhost:8000/` | home page — what OmegaDesk is, in five steps |
 | `http://localhost:8000/app/` | **the desk UI** — alerts → investigate → decision, citations, evidence, override |
 | `http://localhost:8000/docs` | Swagger for every endpoint (incl. the LLM ones) |
 | `http://localhost:3000` | FalkorDB Browser — host `host.docker.internal`, port `6380`, graph `desk` |
@@ -61,10 +82,11 @@ LLM_BASE_URL=https://api.groq.com/openai/v1     # or https://ollama.com/v1
 LLM_MODEL=openai/gpt-oss-120b                   # ollama: gpt-oss:120b
 ```
 
-## C3 — Track 01 strength (built)
+## Track 01 — what the agent can do
 
 | capability | what it does |
 |---|---|
+| **Graph read tools** (`app/tools/read_tools.py`) | the agent picks its own questions: `get_case_context` (the case file), `trace_money_path` (multi-hop money walk, `SENT → Transaction → TO`), `find_shared_entities` (shared devices, identities, counterparties), `find_precedents` (past decisions and corrections, ranked) — plus a whitelisted read-only Cypher hatch |
 | **Proof-of-absence** (`app/tools/absence.py`) | the desk's only honest path to `clear`: a 9-point negative checklist (devices, identity, frozen counterparties, structuring, velocity, unverified payers, pass-through shape) run by **code**; an all-clean pass issues a replayable **receipt** (digest + as_of) stored on the Decision, and the case auto-clears — no human wait for obviously-benign shapes |
 | **Analyst routing** (`app/routing.py`) | escalated/frozen cases land on a named queue deterministically: device-rings → `AN-PRIYA`, merchant shapes → `AN-DEV`; shown in the UI |
 | **Hub centrality** (`app/tools/graph_algos.py`) | FalkorDB's built-in **`algo.betweenness`** on the money graph (Account + Transaction, SENT/TO), ranked over the case's neighborhood — points at the pass-through hub (e.g. the mule in the middle of a chain); for a pure fan-in, where no account passes money through, it names the drain instead and says so. A read tool the agent can call (also via MCP); query in [`queries/05_hub_betweenness.cypher`](queries/05_hub_betweenness.cypher) |
@@ -179,6 +201,8 @@ Test counts are exact asserts, never "looks about right."
   `tail -f journal.jsonl`.
 - Known limits (§18): planted synthetic world; the LLM is the only heuristic; benchmark is
   illustrative, not statistical.
+- A case that says **"investigator unavailable"** means the LLM provider hiccuped — investigate
+  again. Each demo story plants once per world: **Demo tools ▸ Reset** to start over.
 - **AI disclosure (hackathon rule 11):** built with disclosed AI coding assistance throughout
   the hackathon; every design decision, benchmark result, and technical claim was driven and
   verified by the team, which can explain all of it.
