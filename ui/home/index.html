@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="home.css">
+<link rel="stylesheet" href="/app/home/home.css">
 </head>
 <body>
 <canvas id="field" aria-hidden="true"></canvas>
@@ -20,7 +20,7 @@
 
 <!-- 1. Header -->
 <nav class="nav" id="nav">
-  <a class="brand" href="./"><span class="logo" aria-hidden="true"></span>OmegaDesk<span class="tagline">AML investigation desk</span></a>
+  <a class="brand" href="/"><span class="logo" aria-hidden="true"></span>OmegaDesk<span class="tagline">AML investigation desk</span></a>
   <div class="nav-links">
     <a href="#how">How it works</a>
     <a href="#memory">The memory idea</a>
@@ -29,7 +29,7 @@
   </div>
   <div class="island-msg" id="island-msg" aria-live="polite"></div>
   <!-- DEMO: points at the live desk until the demo video is published; swap the href for the video URL then -->
-  <a class="btn primary sm" href="../"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-play"/></svg>View demo</a>
+  <a class="btn primary sm" href="/app/"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-play"/></svg>View demo</a>
 </nav>
 
 <!-- 2. Hero -->
@@ -39,8 +39,8 @@
   <p class="lede">OmegaDesk watches money for fraud shapes, investigates with an AI agent — and keeps every human
     correction as a lesson that changes future decisions.</p>
   <div class="cta">
-    <a class="btn primary" href="../">Watch the demo<svg class="ico" aria-hidden="true"><use href="../icons.svg#i-arrow"/></svg></a>
-    <a class="btn ghost" href="https://github.com/CombatAFK378/OmegaDesk" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-github"/></svg>GitHub repo</a>
+    <a class="btn primary" href="/app/">Watch the demo<svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-arrow"/></svg></a>
+    <a class="btn ghost" href="https://github.com/CombatAFK378/OmegaDesk" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-github"/></svg>GitHub repo</a>
   </div>
 
   <div class="hero-viz glass" aria-label="How a case moves">
@@ -77,17 +77,17 @@
   </div>
   <div class="cards3">
     <article class="p-card glass" data-sig="problem 1 · repeated work">
-      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-repeat"/></svg></span><span class="p-no">01</span></div>
+      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-repeat"/></svg></span><span class="p-no">01</span></div>
       <h3>Work gets repeated</h3>
       <p>An analyst spends an hour on a case, closes it — and the same pattern walks in next week. Nobody remembers.</p>
     </article>
     <article class="p-card glass" data-sig="problem 2 · lost reasoning">
-      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-unlink"/></svg></span><span class="p-no">02</span></div>
+      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-unlink"/></svg></span><span class="p-no">02</span></div>
       <h3>Lessons are lost</h3>
       <p>The reason behind a decision is written somewhere, but nothing connects it to the next similar case.</p>
     </article>
     <article class="p-card glass" data-sig="problem 3 · repeated mistakes">
-      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-lock"/></svg></span><span class="p-no">03</span></div>
+      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-lock"/></svg></span><span class="p-no">03</span></div>
       <h3>Wrong freezes stick for months</h3>
       <p>An honest business gets frozen. The mistake repeats, because the system remembers the freeze but not why it was wrong.</p>
     </article>
@@ -107,24 +107,24 @@
   <ol class="story">
     <li class="step" data-actor="rules" data-sig="step 1 · fixed rules · no AI">
       <div class="s-no">01</div>
-      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-radar"/></svg></span>A watcher with plain maths</h3><span class="actor rules">fixed rules</span></div>
+      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-radar"/></svg></span>A watcher with plain maths</h3><span class="actor rules">fixed rules</span></div>
         <p>Every moment, fixed rules look at the money: one account paid by many? money leaving instantly? payments hiding
           under the reporting line? one device on many accounts?</p></div>
     </li>
     <li class="step" data-actor="rules" data-sig="step 2 · fixed rules · the whole crowd">
       <div class="s-no">02</div>
-      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-graph"/></svg></span>A case file, not one suspect</h3><span class="actor rules">fixed rules</span></div>
+      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-graph"/></svg></span>A case file, not one suspect</h3><span class="actor rules">fixed rules</span></div>
         <p>The desk captures the whole crowd — receivers, payers, shared devices — because the fraud shape lives in the relationships.</p></div>
     </li>
     <li class="step key" data-actor="ai" data-sig="step 3 · AI · the only step that reasons">
       <div class="s-no">03</div>
-      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-detective"/></svg></span>An AI detective</h3><span class="actor ai">AI</span></div>
+      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-detective"/></svg></span>An AI detective</h3><span class="actor ai">AI</span></div>
         <p>An agent reads the file, asks the graph questions one by one, and reads the desk's memory of past cases. It answers
           with a verdict, a certainty score, and the past cases it leaned on.</p></div>
     </li>
     <li class="step" data-actor="code" data-sig="step 4 · rules · the AI never picks the action">
       <div class="s-no">04</div>
-      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-ladder"/></svg></span>Rules make the final call</h3><span class="actor code">rule ladder</span></div>
+      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-ladder"/></svg></span>Rules make the final call</h3><span class="actor code">rule ladder</span></div>
         <p>A fixed rule ladder converts the verdict into action — freeze, human review, or watch. The AI can never release an
           account without fresh proof run that day.</p>
         <div class="ladder">
@@ -133,7 +133,7 @@
     </li>
     <li class="step" data-actor="human" data-sig="step 5 · human · corrections become case law">
       <div class="s-no">05</div>
-      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-pen"/></svg></span>Humans correct — and the desk learns</h3><span class="actor human">human</span></div>
+      <div class="s-body glass"><div class="s-top"><h3><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-pen"/></svg></span>Humans correct — and the desk learns</h3><span class="actor human">human</span></div>
         <p>An analyst who disagrees leaves a written reason. That reason becomes "case law": future similar cases cite it, and
           the old wrong decision is marked never-cite-again.</p></div>
     </li>
@@ -152,7 +152,7 @@
       <p>A look-alike of a merchant the desk had already cleared gets frozen. Apology letter pending.</p>
       <span class="ba-out a-freeze">frozen</span>
     </div>
-    <div class="ba-arrow" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-arrow"/></svg></div>
+    <div class="ba-arrow" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-arrow"/></svg></div>
     <div class="ba-card glass with" data-sig="memory on · cites the earlier clearance">
       <span class="ba-tag">With memory</span>
       <p>The same case cites the earlier clearance, runs its own fresh proof, and clears it legally.</p>
@@ -171,17 +171,17 @@
   </div>
   <div class="cards3">
     <article class="p-card glass" data-sig="receipt · re-runnable any time">
-      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-receipt"/></svg></span><span class="p-no">Receipts</span></div>
+      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-receipt"/></svg></span><span class="p-no">Receipts</span></div>
       <h3>Every release comes with a receipt</h3>
       <p>A checklist of clean-look proofs, sealed to the decision, re-runnable any time.</p>
     </article>
     <article class="p-card glass" data-sig="report · every sentence footnoted">
-      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-sources"/></svg></span><span class="p-no">Sources</span></div>
+      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-sources"/></svg></span><span class="p-no">Sources</span></div>
       <h3>The written report carries its sources</h3>
       <p>Every sentence in a case report ends like a footnote: [1] the decision, [2] the measurements, [3] the receipt…</p>
     </article>
     <article class="p-card glass" data-sig="benchmark · with and without memory">
-      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="../icons.svg#i-results"/></svg></span><span class="p-no">Results</span></div>
+      <div class="p-head"><span class="ico-tile"><svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-results"/></svg></span><span class="p-no">Results</span></div>
       <h3>Results are published, misses included</h3>
       <p>A built-in with/without replay of six known cases shows exactly what memory changed.</p>
     </article>
@@ -203,7 +203,7 @@
 
 <section class="band">
   <h2>Pick an alert. <em class="serif">Watch it get answered.</em></h2>
-  <a class="btn primary" href="../">Open the desk<svg class="ico" aria-hidden="true"><use href="../icons.svg#i-arrow"/></svg></a>
+  <a class="btn primary" href="/app/">Open the desk<svg class="ico" aria-hidden="true"><use href="/app/icons.svg#i-arrow"/></svg></a>
 </section>
 
 <!-- 9. Footer -->
@@ -215,7 +215,7 @@
     </div>
     <div class="sf-links">
       <a href="https://github.com/CombatAFK378/OmegaDesk" target="_blank" rel="noopener">GitHub</a>
-      <a href="../">Open the desk</a>
+      <a href="/app/">Open the desk</a>
     </div>
   </div>
   <p class="sf-fine">Planted synthetic world for the hackathon; illustrative benchmark. Built with disclosed AI coding
@@ -231,7 +231,7 @@
   <span class="hud-last" id="h-last"></span>
 </footer>
 
-<script src="../hover.js"></script>
-<script src="home.js"></script>
+<script src="/app/hover.js"></script>
+<script src="/app/home/home.js"></script>
 </body>
 </html>
