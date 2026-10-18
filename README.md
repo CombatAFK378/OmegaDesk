@@ -67,7 +67,7 @@ LLM_MODEL=openai/gpt-oss-120b                   # ollama: gpt-oss:120b
 |---|---|
 | **Proof-of-absence** (`app/tools/absence.py`) | the desk's only honest path to `clear`: a 9-point negative checklist (devices, identity, frozen counterparties, structuring, velocity, unverified payers, pass-through shape) run by **code**; an all-clean pass issues a replayable **receipt** (digest + as_of) stored on the Decision, and the case auto-clears — no human wait for obviously-benign shapes |
 | **Analyst routing** (`app/routing.py`) | escalated/frozen cases land on a named queue deterministically: device-rings → `AN-PRIYA`, merchant shapes → `AN-DEV`; shown in the UI |
-| **Hub centrality** (`app/tools/graph_algos.py`) | betweenness over the case's money neighborhood — points at the funnel's heart; a read tool the agent can call (also via MCP) |
+| **Hub centrality** (`app/tools/graph_algos.py`) | FalkorDB's built-in **`algo.betweenness`** on the money graph (Account + Transaction, SENT/TO), ranked over the case's neighborhood — points at the pass-through hub (e.g. the mule in the middle of a chain); for a pure fan-in, where no account passes money through, it names the drain instead and says so. A read tool the agent can call (also via MCP); query in [`queries/05_hub_betweenness.cypher`](queries/05_hub_betweenness.cypher) |
 | **MCP server** (`app/mcp_server.py`) | the desk exposed over the Model Context Protocol — an external MCP client can run a **full investigation**; wire it into Claude Desktop with `docs/claude_desktop_config.json`:
 
 ```bash

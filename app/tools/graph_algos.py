@@ -1,15 +1,20 @@
 """C3 — "algorithms as tools" (§16 C3): graph structure the agent can call.
 
-hub_centrality = betweenness on the money subgraph around a case's scope: WHO
-is the funnel's heart (money from everywhere converges here / exits here).
-Implemented with networkx on a small neighborhood — cheap, deterministic,
-replayable (the graph answers, the code measures).
+hub_centrality = betweenness on the money graph, ranked around a case's scope:
+WHO is the funnel's heart (money from everywhere converges here / exits here).
+Computed INSIDE FalkorDB with its built-in algo.betweenness over the money
+model (Account + Transaction nodes, SENT/TO edges) — the graph measures itself;
+the code only picks the accounts in the case's neighborhood.
 """
-import networkx as nx
-
 from ..graph import get_graph
 from ..journal import journal
 from .registry import register
+
+BETWEENNESS_Q = """CALL algo.betweenness({nodeLabels: ['Account', 'Transaction'],
+                                         relationshipTypes: ['SENT', 'TO']})
+                   YIELD node, score
+                   WITH node, score WHERE node:Account AND node.id IN $ids
+                   RETURN node.id, score ORDER BY score DESC, node.id"""
 
 
 @register("read",
@@ -27,41 +32,39 @@ def hub_centrality(case_id, k=1):
         return {"found": False, "error": "case has no scope"}
 
     # neighborhood: the scope's accounts ± k transaction hops (bounded, deterministic)
-    rows = g.query(
-        f"""MATCH p = (a:Account)-[:SENT|TO*1..{2 * k}]-(b:Account)
-            WHERE a.id IN $scope
-            RETURN [n IN nodes(p) | n.id],
-                   [r IN relationships(p) | type(r)]""",
-        {"scope": scope}).result_set
-    G = nx.DiGraph()
-    for ids, rels in rows:
-        prev = None
-        for i, nid in enumerate(ids):
-            if prev is not None and i - 1 < len(rels):
-                rel = rels[i - 1]
-                if rel == "SENT":
-                    G.add_edge(prev, nid)
-                else:
-                    G.add_edge(nid, prev)
-            prev = nid
-    if not G.nodes:
+    near = {r[0] for r in g.query(
+        f"""MATCH (a:Account)-[:SENT|TO*1..{2 * k}]-(b:Account)
+            WHERE a.id IN $scope RETURN DISTINCT b.id""",
+        {"scope": scope}).result_set} | set(scope)
+    ranked = g.query(BETWEENNESS_Q, {"ids": sorted(near)}).result_set
+    if not ranked or len(near) < 2:
         return {"found": False, "error": "no money path around this case"}
 
-    bc = nx.betweenness_centrality(G, normalized=True)
-    in_deg = dict(G.in_degree())
-    out_deg = dict(G.out_degree())
-    ranked = sorted(bc.items(), key=lambda kv: (-kv[1], kv[0]))
-    hub_id = ranked[0][0]
+    deg = {r[0]: (r[1], r[2]) for r in g.query(
+        """MATCH (a:Account) WHERE a.id IN $ids
+           OPTIONAL MATCH (s:Account)-[:SENT]->(:Transaction)-[:TO]->(a) WHERE s.id IN $ids
+           WITH a, count(DISTINCT s) AS n_in
+           OPTIONAL MATCH (a)-[:SENT]->(:Transaction)-[:TO]->(o:Account) WHERE o.id IN $ids
+           RETURN a.id, n_in, count(DISTINCT o)""",
+        {"ids": sorted(near)}).result_set}
+    hub_id, hub_score = ranked[0]
+    shape = "pass-through hub"
+    if hub_score == 0:
+        # nothing sits BETWEEN payers and payees (pure fan-in / fan-out): no money
+        # flows through any node, so name the drain — the most inbound sources
+        hub_id = max(sorted(deg), key=lambda a: (deg[a][0], -deg[a][1]))
+        shape = "drain (no account passes money through)"
+    n_in, n_out = deg.get(hub_id, (0, 0))
     journal("agent", "hub_centrality", case_id=case_id, hub=hub_id,
-            score=round(ranked[0][1], 4))
+            score=round(hub_score, 4), algo="falkordb algo.betweenness")
     return {
-        "found": True, "case_id": case_id,
-        "hub": hub_id, "betweenness": round(ranked[0][1], 4),
-        "in_degree": in_deg.get(hub_id, 0), "out_degree": out_deg.get(hub_id, 0),
-        "accounts_in_neighborhood": len(G.nodes),
+        "found": True, "case_id": case_id, "algorithm": "algo.betweenness (FalkorDB)",
+        "hub": hub_id, "shape": shape, "betweenness": round(hub_score, 4),
+        "in_degree": n_in, "out_degree": n_out,
+        "accounts_in_neighborhood": len(near),
         "plain": f"the money from this pattern funnels hardest through {hub_id} — "
-                 f"{in_deg.get(hub_id, 0)} sources in, {out_deg.get(hub_id, 0)} moving out",
+                 f"{n_in} sources in, {n_out} moving out",
         "top5": [{"account": a, "betweenness": round(s, 4),
-                  "in": in_deg.get(a, 0), "out": out_deg.get(a, 0)}
+                  "in": deg.get(a, (0, 0))[0], "out": deg.get(a, (0, 0))[1]}
                  for a, s in ranked[:5]],
     }
