@@ -3,7 +3,7 @@ Phase 0 health · sim · monitor · C1 · C2 desk API + served UI at /. """
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api_cases import router as cases_router
@@ -61,6 +61,8 @@ if UI_DIR.exists():
 
 @app.get("/", include_in_schema=False)
 def root():
+    if (UI_DIR / "home" / "index.html").exists():   # the public home page lives at /
+        return FileResponse(UI_DIR / "home" / "index.html")
     if (UI_DIR / "index.html").exists():
         return JSONResponse({"desk_ui": "/app/index.html", "docs": "/docs",
                              "note": "the desk UI is mounted at /app"})
