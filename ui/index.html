@@ -47,7 +47,7 @@
         Alerts <span class="count" id="alert-count">–</span></button>
       <button role="tab" class="tab" id="tab-cases" aria-selected="false" data-tab="cases">
         Past cases <span class="count" id="case-count">–</span></button>
-      <button id="refresh" class="icon-btn" title="Refresh now" aria-label="Refresh">↻</button>
+      <button id="refresh" class="icon-btn" title="Refresh now" aria-label="Refresh"><svg class="ico" aria-hidden="true"><use href="icons.svg#i-refresh"/></svg></button>
     </div>
 
     <div class="filters">
@@ -97,12 +97,12 @@
     <p class="muted small">The analyst's correction becomes a lesson for future cases.</p>
     <div id="override-target" class="ov-target muted">Open a case to correct its decision.</div>
     <form id="override-form">
-      <label class="fld">Analyst
-        <select id="analyst">
-          <option value="AN-PRIYA">AN-PRIYA</option>
-          <option value="AN-DEV">AN-DEV</option>
-        </select>
-      </label>
+      <div class="fld">Analyst
+        <div class="seg analyst" role="radiogroup" aria-label="Analyst">
+          <label class="seg-opt who"><input type="radio" name="analyst" value="AN-PRIYA" checked><span>AN-PRIYA</span></label>
+          <label class="seg-opt who"><input type="radio" name="analyst" value="AN-DEV"><span>AN-DEV</span></label>
+        </div>
+      </div>
       <div class="fld">Correct action to
         <div class="seg" role="radiogroup" aria-label="Corrected action">
           <label class="seg-opt clear"><input type="radio" name="action" value="clear" checked><span>clear</span></label>
@@ -114,7 +114,7 @@
       <label class="fld">Written reason
         <textarea id="reason" rows="4" placeholder="Required. A correction without a written reason is not recorded."></textarea>
       </label>
-      <button id="override-btn" class="warn" type="submit" disabled>Record override → clear</button>
+      <button id="override-btn" class="warn" type="submit" disabled>Record override<svg class="ico" aria-hidden="true"><use href="icons.svg#i-arrow"/></svg><span id="ov-act">clear</span></button>
       <div id="override-note" class="ov-note muted"></div>
     </form>
   </aside>
@@ -128,8 +128,8 @@
       <div class="muted">Same cases, with and without the desk's memory</div>
     </div>
     <div class="modal-actions">
-      <button id="bench-load" class="ghost">↻ Reload</button>
-      <button id="bench-close" class="icon-btn" aria-label="Close">✕</button>
+      <button id="bench-load" class="ghost"><svg class="ico" aria-hidden="true"><use href="icons.svg#i-refresh"/></svg>Reload</button>
+      <button id="bench-close" class="icon-btn" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button>
     </div>
   </div>
   <div id="bench-body"><div class="muted">Run the benchmark once (scripts/c1_exit_test.py), then load it here.</div></div>

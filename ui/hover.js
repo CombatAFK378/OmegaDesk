@@ -12,20 +12,27 @@ if (!$("field")) return;
 const field = (() => {
   const cv = $("field");
   const ctx = cv.getContext("2d");
-  const G = 22, LIFE = 750, FAST = 2.2;   // px per ms: above this the trail reads as "velocity"
-  let W = 0, H = 0, base = null, raf = 0;
+  /* two layers: a sparse grid of faint dots that is always there, over a dense fine-grain lattice
+     that is nearly invisible until the cursor's comet trail lights it up */
+  const G = 18, g = 6, LIFE = 1150, FAST = 2.2;   // FAST: px per ms; above it the trail reads as "velocity"
+  let W = 0, H = 0, cols = 0, rows = 0, base = null, raf = 0;
+  let lit = new Float32Array(0), hot = new Uint8Array(0);
   const trail = [];
   function resize() {
     const dpr = Math.min(2, devicePixelRatio || 1);
     W = innerWidth; H = innerHeight;
     cv.width = W * dpr; cv.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cols = Math.ceil(W / g); rows = Math.ceil(H / g);
+    lit = new Float32Array(cols * rows); hot = new Uint8Array(cols * rows);
     base = document.createElement("canvas");
     base.width = cv.width; base.height = cv.height;
     const b = base.getContext("2d");
     b.setTransform(dpr, 0, 0, dpr, 0, 0);
-    b.fillStyle = "rgba(255,255,255,.075)";
-    for (let y = G / 2; y < H; y += G) for (let x = G / 2; x < W; x += G) b.fillRect(x - .75, y - .75, 1.5, 1.5);
+    b.fillStyle = "rgba(255,255,255,.03)";             // the grain
+    for (let y = g / 2; y < H; y += g) for (let x = g / 2; x < W; x += g) b.fillRect(x - .5, y - .5, 1, 1);
+    b.fillStyle = "rgba(255,255,255,.11)";             // the grid
+    for (let y = G / 2; y < H; y += G) for (let x = G / 2; x < W; x += G) b.fillRect(x - .7, y - .7, 1.4, 1.4);
     frame();
   }
   function frame() {
@@ -34,23 +41,27 @@ const field = (() => {
     while (trail.length && now - trail[0].t > LIFE) trail.shift();
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(base, 0, 0, W, H);
-    const lit = new Map();
+    const touched = [];
     for (const p of trail) {
-      const age = (now - p.t) / LIFE, R = 110 * (1 - age * .45), k = 1 - age;
-      const gx0 = Math.max(0, Math.floor((p.x - R) / G)), gx1 = Math.ceil((p.x + R) / G);
-      const gy0 = Math.max(0, Math.floor((p.y - R) / G)), gy1 = Math.ceil((p.y + R) / G);
+      const age = (now - p.t) / LIFE, R = 120 * (1 - age * .5), k = 1 - age;
+      const gx0 = Math.max(0, Math.floor((p.x - R) / g)), gx1 = Math.min(cols - 1, Math.ceil((p.x + R) / g));
+      const gy0 = Math.max(0, Math.floor((p.y - R) / g)), gy1 = Math.min(rows - 1, Math.ceil((p.y + R) / g));
       for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
-        const dx = gx * G + G / 2 - p.x, dy = gy * G + G / 2 - p.y, dd = Math.sqrt(dx * dx + dy * dy);
+        const dx = gx * g + g / 2 - p.x, dy = gy * g + g / 2 - p.y, dd = Math.sqrt(dx * dx + dy * dy);
         if (dd >= R) continue;
-        const v = k * Math.pow(1 - dd / R, 2), key = gy * 100000 + gx;
-        const cur = lit.get(key);
-        if (!cur || v > cur.v) lit.set(key, { v, fast: p.sp > FAST });
+        const v = k * Math.pow(1 - dd / R, 1.6), i = gy * cols + gx;
+        if (lit[i] === 0) touched.push(i);
+        if (v > lit[i]) { lit[i] = v; hot[i] = p.sp > FAST ? 1 : 0; }
       }
     }
-    for (const [key, { v, fast }] of lit) {
-      const gx = key % 100000, gy = (key - gx) / 100000, sz = 1.5 + v * 2.2;
-      ctx.fillStyle = `rgba(${fast ? "245,158,75" : "71,159,250"},${Math.min(1, v * 1.5).toFixed(3)})`;
-      ctx.fillRect(gx * G + G / 2 - sz / 2, gy * G + G / 2 - sz / 2, sz, sz);
+    for (const i of touched) {
+      const v = lit[i], gx = i % cols, gy = (i - gx) / cols, sz = 1 + v * 1.6;
+      // fresh trail is signal blue, the tail cools to a deep blue (ember when moving fast)
+      ctx.fillStyle = hot[i]
+        ? `rgba(230,140,60,${Math.min(1, v * 1.5).toFixed(3)})`
+        : `rgba(${Math.round(20 + 40 * v)},${Math.round(110 + 70 * v)},${Math.round(200 + 40 * v)},${Math.min(1, v * 1.5).toFixed(3)})`;
+      ctx.fillRect(gx * g + g / 2 - sz / 2, gy * g + g / 2 - sz / 2, sz, sz);
+      lit[i] = 0;
     }
     if (trail.length) raf = requestAnimationFrame(frame);
   }
@@ -62,7 +73,7 @@ const field = (() => {
       const t = performance.now(), prev = trail[trail.length - 1];
       const sp = prev && t > prev.t ? Math.hypot(x - prev.x, y - prev.y) / (t - prev.t) : 0;
       trail.push({ x, y, t, sp: prev ? prev.sp * .6 + sp * .4 : 0 });
-      if (trail.length > 48) trail.shift();
+      if (trail.length > 64) trail.shift();
       if (!raf) raf = requestAnimationFrame(frame);
     },
   };

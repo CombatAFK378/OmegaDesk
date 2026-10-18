@@ -51,6 +51,8 @@ const initials = (name) => {
   if (!name || name === "merchant") return "BIZ";
   return name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 };
+/* themed line icons from icons.svg (no emoji anywhere in the desk) */
+const ic = (n) => `<svg class="ico" aria-hidden="true"><use href="icons.svg#i-${n}"/></svg>`;
 const trunc = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 const nf = (n) => Number(n || 0).toLocaleString("en-IN");
 /* numbered mono eyebrow: 01 —— TITLE */
@@ -296,7 +298,7 @@ function renderTicker() {
   const items = S.alerts.slice(0, 12).map((a) =>
     `<span class="ticker-item"><span class="tk-dot"></span><b>${esc(TYPE_PLAIN[a.type] || a.type)}</b> ${esc(a.target)} · ${esc(relTime(a.created_at))}</span>`).join("");
   const track = $("ticker-track");
-  if (track.dataset.sig !== items) { track.innerHTML = items; track.dataset.sig = items; }
+  if (track.dataset.rendered !== items) { track.innerHTML = items; track.dataset.rendered = items; }   // not data-sig: the hover probe reads that
 }
 
 function setTab(tab) {
@@ -455,8 +457,9 @@ function flowMap(c) {
     parts += `<g class="node ${fz ? "frozen" : ""}" data-k="${i}" style="--i:${i}" data-sig="${esc(s.account)} · ${esc(scopeName(s))} · payer${fz ? " · BLOCKED" : ""}">
       ${fz ? `<circle class="halo" cx="${nd.x}" cy="${nd.y}" r="20"/>` : ""}
       <circle class="body" cx="${nd.x}" cy="${nd.y}" r="15"/>
-      <text class="ini" x="${nd.x}" y="${nd.y + 3.5}" text-anchor="middle">${fz ? "🔒" : esc(initials(s.holder))}</text>
+      <text class="ini" x="${nd.x}" y="${nd.y + 3.5}" text-anchor="middle">${esc(initials(s.holder))}</text>
       ${s.kyc === true || s.kyc === false ? `<circle class="kdot ${s.kyc ? "y" : "n"}" cx="${nd.x + 11}" cy="${nd.y - 11}" r="3.5"/>` : ""}
+      ${fz ? `<g class="lockb"><circle cx="${nd.x - 12}" cy="${nd.y + 12}" r="7"/><use href="icons.svg#i-lock" x="${nd.x - 17}" y="${nd.y + 7}" width="10" height="10"/></g>` : ""}
       <text x="${nd.x - 24}" y="${nd.y}" text-anchor="end">${esc(trunc(scopeName(s), 20))}</text>
       <text class="lbl-sub" x="${nd.x - 24}" y="${nd.y + 12}" text-anchor="end">${esc(s.account)}</text></g>`;
   });
@@ -467,7 +470,7 @@ function flowMap(c) {
     edges += `<path class="edge out draw" style="--i:${n}" d="${p}"/>`;
     if (!REDUCED) dots += `<circle class="pt" r="2.2"><animateMotion dur="1.6s" repeatCount="indefinite" path="${p}"/></circle>`;
     parts += `<g class="node ghost" style="--i:${n + 1}" data-sig="PASS_THROUGH · money arrived and was sent straight out">
-      <circle class="body" cx="${RX + 186}" cy="${RY - 56}" r="15"/><text class="ini" x="${RX + 186}" y="${RY - 52}" text-anchor="middle">→</text>
+      <circle class="body" cx="${RX + 186}" cy="${RY - 56}" r="15"/><use class="nico" href="icons.svg#i-arrow" x="${RX + 178}" y="${RY - 64}" width="16" height="16"/>
       <text x="${RX + 186}" y="${RY - 80}" text-anchor="middle">sent onward</text></g>`;
   }
   const ring = has("RING_MEMBER"), dev = has("SHARED_DEVICE") || ring;
@@ -476,15 +479,16 @@ function flowMap(c) {
     edges += `<path class="edge dev ${ring ? "ring" : ""} draw" style="--i:${n + 1}" d="M${RX + 26},${RY + 22} Q${RX + 70},${dy} ${dx - 18},${dy}"/>`;
     parts += `<g class="node device ${ring ? "ring" : ""}" style="--i:${n + 2}" data-sig="${ring ? "RING_MEMBER · device tied to confirmed fraud" : "SHARED_DEVICE · one device across accounts"}">
       <rect x="${dx - 15}" y="${dy - 15}" width="30" height="30" rx="7" transform="rotate(45 ${dx} ${dy})"/>
-      <text class="ini" x="${dx}" y="${dy + 4}" text-anchor="middle">📱</text>
+      <use class="nico" href="icons.svg#i-device" x="${dx - 8}" y="${dy - 8}" width="16" height="16"/>
       <text x="${dx}" y="${dy + 34}" text-anchor="middle">${ring ? "device tied to known fraud" : "shared device"}</text></g>`;
   }
   const rf = frozen.has(recv.account);
   parts += `<g class="node recv ${rf ? "frozen" : ""}" style="--i:${n + 3}" data-sig="${esc(recv.account)} · ${esc(scopeName(recv))} · receiver${rf ? " · BLOCKED" : ""}">
     ${rf ? `<circle class="halo" cx="${RX}" cy="${RY}" r="42"/>` : ""}
     <circle class="body" cx="${RX}" cy="${RY}" r="32"/>
-    <text class="ini" x="${RX}" y="${RY + 4.5}" text-anchor="middle">${rf ? "🔒" : esc(initials(recv.holder))}</text>
+    <text class="ini" x="${RX}" y="${RY + 4.5}" text-anchor="middle">${esc(initials(recv.holder))}</text>
     ${recv.kyc === true || recv.kyc === false ? `<circle class="kdot ${recv.kyc ? "y" : "n"}" cx="${RX + 23}" cy="${RY - 23}" r="5"/>` : ""}
+    ${rf ? `<g class="lockb"><circle cx="${RX - 24}" cy="${RY + 24}" r="10"/><use href="icons.svg#i-lock" x="${RX - 31}" y="${RY + 17}" width="14" height="14"/></g>` : ""}
     <text x="${RX}" y="${RY + 50}" text-anchor="middle" font-weight="600">${esc(trunc(scopeName(recv), 26))}</text>
     <text class="lbl-sub" x="${RX}" y="${RY + 63}" text-anchor="middle">${esc(recv.account)} · receiver</text>
     ${has("BUSINESS_KYC") ? `<text class="tag-biz" x="${RX}" y="${RY + 77}" text-anchor="middle">verified business</text>` : ""}</g>`;
@@ -497,7 +501,7 @@ function flowMap(c) {
     </svg>
     <div class="legend"><span><span class="ln"></span>money in</span>${has("PASS_THROUGH") ? '<span><span class="ln d"></span>sent onward</span>' : ""}
       <span><i style="background:var(--good)"></i>identity verified</span><span><i style="background:var(--bad)"></i>not verified</span>
-      ${anyFrozen ? "<span>🔒 blocked</span>" : ""}</div></div>`;
+      ${anyFrozen ? `<span class="lg-lock">${ic("lock")}blocked</span>` : ""}</div></div>`;
 }
 
 /* ---------- render case detail ---------- */
@@ -539,12 +543,12 @@ function renderCase(c, runRes) {
   const scope = c.scope.map((s) =>
     `<span class="pill neutral" data-sig="${esc(s.account)} · kyc ${s.kyc === true ? "verified" : s.kyc === false ? "NOT verified" : "unknown"}${s.opened_at ? " · opened " + esc(s.opened_at) : ""}">
        <b>${esc(scopeName(s))}</b>
-       <span class="psub">${s.kyc === true ? '<span class="kyc-y">●</span> identity verified' : s.kyc === false ? '<span class="kyc-n">●</span> identity NOT verified' : "&nbsp;"}</span></span>`).join(" ");
+       <span class="psub">${s.kyc === true ? '<i class="kdot y"></i>identity verified' : s.kyc === false ? '<i class="kdot n"></i>identity NOT verified' : "&nbsp;"}</span></span>`).join(" ");
   const sig = c.signals.length
     ? c.signals.map((s) =>
         `<span class="pill ${s.polarity}" data-sig="${esc(s.code)} · ${esc(s.polarity)} · value ${esc(s.value)}">
            <b>${esc(SIG_PLAIN[s.code] || s.code)}</b>
-           <span class="psub">${s.polarity === "aggravating" ? "▲ looks suspicious" : "▼ looks innocent"}
+           <span class="psub">${s.polarity === "aggravating" ? ic("up") + "looks suspicious" : ic("down") + "looks innocent"}
              ${s.value > 1 ? "· seen " + esc(s.value) + "×" : ""}</span></span>`).join("")
     : '<span class="muted">nothing unusual measured on the accounts themselves</span>';
 
@@ -557,12 +561,12 @@ function renderCase(c, runRes) {
     const xc = Math.round((x.confidence || 0) * 100);
     const cites = x.cites.map((ct) =>
       `<div class="prec" data-sig="cites ${esc(ct.decision_id)} · ${ct.applies ? "applies" : "does not apply"}"><div class="head">
-        <span class="applies ${ct.applies ? "y" : "n"}">${ct.applies ? "✓ this past case applies here" : "✗ the agent decided this past case does NOT apply here"}</span>
+        <span class="applies ${ct.applies ? "y" : "n"}">${ct.applies ? "This past case applies here" : "The agent decided this past case does NOT apply here"}</span>
         ${ct.distinguishing && ct.distinguishing.length ? `<span class="dist">different because: ${esc(ct.distinguishing.map((s) => SIG_PLAIN[s] || s).join("; "))}</span>` : (ct.applies ? "" : `<span class="dist">(no reason recorded)</span>`)}</div></div>`).join("");
     const ov = x.overridden_by.map((o) =>
-      `<div class="dist ov">⚠ a human corrected this one — “${esc(o.reason)}”</div>`).join("");
+      `<div class="dist ov">Corrected by a human: “${esc(o.reason)}”</div>`).join("");
     const rc = (x.action === "clear" && x.receipt)
-      ? `<div class="dist rc">🧾 cleared with a replayable receipt — every dangerous connection checked, none exists.</div>`
+      ? `<div class="dist rc">Cleared with a replayable receipt: every dangerous connection was checked, and none exists.</div>`
       : "";
     const human = x.decided_by !== "agent";
     return `<div class="tl a-${esc(x.action)} ${human ? "human" : ""} ${x.overridden_by.length ? "overruled" : ""}" data-sig="${esc(x.decision_id)} · ${esc(x.action)} · ${xc}% sure${x.overridden_by.length ? " · overruled" : ""}" style="color:${ACTION_COLOR[x.action] || "var(--muted)"}">
@@ -575,7 +579,7 @@ function renderCase(c, runRes) {
       </div></div>`;
   }).join("");
   const fr = c.freeze_orders.map((f) =>
-    `<div class="frz"><span class="lock">🔒</span><div><b>${esc(holder(f.account))}</b>'s account is blocked — money stopped
+    `<div class="frz">${badge("freeze", "sm")}<div><b>${esc(holder(f.account))}</b>'s account is blocked — money stopped
       <div class="muted">${esc(fmtDate(f.ts))} · order ${esc(f.order)}</div></div></div>`).join("");
   const queue = c.assigned_to
     ? `<div class="queue-note"><span class="av">${esc(String(c.assigned_to.analyst).replace(/^AN-/, "").slice(0, 2))}</span>
@@ -586,7 +590,7 @@ function renderCase(c, runRes) {
   const evRows = c.evidence.map((e) =>
     lead(esc(TOOL_PLAIN[e.tool] || e.tool || "case history"), `as of ${esc(fmtDate(e.as_of))}`, null, `${e.tool || ""} · ${e.query_id}`)).join("");
   const evReceipt = (d && d.receipt && d.action === "clear")
-    ? lead("🧾 the clearance receipt", `as of ${esc(fmtDate(d.receipt.as_of))}`, { v: "ok" }) : "";
+    ? lead("the clearance receipt", `as of ${esc(fmtDate(d.receipt.as_of))}`, { v: "ok" }) : "";
   const ev = (evRows || evReceipt)
     ? `<div class="leaders">${evRows}${evReceipt}</div><div class="hint">Each answer is stored with its query and can be re-run later.</div>`
     : '<span class="muted">no links stored yet</span>';
@@ -596,10 +600,10 @@ function renderCase(c, runRes) {
   const rep = S.report && S.report.case_id === c.case_id ? S.report : null;
   const repBody = rep ? rep.report : (c.report && c.report.body);
   const repCard = repBody
-    ? `<div class="card rep" style="--i:8">${h3(9, "📄 Case report — written by the AI, sources checked", c.report && c.report.model ? esc(c.report.model) : "")}
+    ? `<div class="card rep" style="--i:8">${h3(9, "Case report — written by the AI, sources checked", c.report && c.report.model ? esc(c.report.model) : "")}
          <div class="rept">${esc(repBody)}</div>
          <div class="hint">sources: <span class="q">${esc((rep && rep.sources || []).join(" · ") || "stored on the case")}</span></div>
-         <a class="dl" href="/cases/${esc(c.case_id)}/report.md" download>⬇ Download the report</a></div>`
+         <a class="dl" href="/cases/${esc(c.case_id)}/report.md" download>${ic("download")}Download the report (.md)</a></div>`
     : "";
 
   $("case-body").innerHTML = `
@@ -616,7 +620,7 @@ function renderCase(c, runRes) {
       <div class="leaders" style="margin-top:12px">${lead("tokens in", nf(c.tokens.in))}${lead("tokens out", nf(c.tokens.out))}${lead("AI runs on this case", nf(c.tokens.llm_runs))}</div>
       <div class="hint">logged and auditable</div></div>
     ${repCard}
-    <div class="row btns"><button id="report-btn" class="ghost" ${S.busy ? "disabled" : ""}>📄 ${repBody ? "Rewrite" : "Write"} the case report (one AI call)</button></div>`;
+    <div class="row btns"><button id="report-btn" class="ghost" ${S.busy ? "disabled" : ""}>${repBody ? "Rewrite" : "Write"} the case report (one AI call)</button></div>`;
 
   /* motion: ring, bars, counters, the AI's words typed out on a fresh run */
   requestAnimationFrame(() => {
@@ -655,14 +659,14 @@ function ablateNote(ablated, d) {
     : d && d.cites.length
       ? "This decision used the desk's memory — past cases and human corrections shaped it."
       : "";
-  return note ? `<div class="card memo ${ablated ? "off" : "on"}" style="--i:2"><h3><span class="no">◐</span><span class="ln"></span>Memory check</h3><div class="muted">${note}</div></div>` : "";
+  return note ? `<div class="card memo ${ablated ? "off" : "on"}" style="--i:2"><h3><span class="no">${ic("memory")}</span><span class="ln"></span>Memory check</h3><div class="muted">${note}</div></div>` : "";
 }
 
 async function writeReport() {
   if (!S.currentCase || S.busy) return;
   S.busy = true;
   const btn = $("report-btn");
-  if (btn) { btn.disabled = true; btn.textContent = "✍ writing the report…"; }
+  if (btn) { btn.disabled = true; btn.textContent = "Writing the report…"; }
   toast("writing the case report — one AI call…");
   try {
     S.report = await api(`/cases/${S.currentCase}/report`, { method: "POST" });
@@ -672,7 +676,7 @@ async function writeReport() {
     toast("report ready — with every source named");
   } catch (e) {
     toast(`report: ${e.message}`, true);
-    if (btn) { btn.disabled = false; btn.textContent = "📄 Write the case report (one AI call)"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Write the case report (one AI call)"; }
   } finally { S.busy = false; updateSelected(); }
 }
 
@@ -708,7 +712,7 @@ async function overrideSubmit(e) {
   try {
     const r = await api(`/cases/${S.currentCase}/override`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ analyst_id: $("analyst").value, action: overrideAction(), reason }),
+      body: JSON.stringify({ analyst_id: (document.querySelector('input[name="analyst"]:checked') || {}).value || "AN-PRIYA", action: overrideAction(), reason }),
     });
     $("override-note").className = "ov-note ok";
     $("override-note").textContent = `Recorded as ${r.override_id}. It corrects ${r.overruled}: the next similar case will cite this lesson, and ${r.overruled} can never be cited again.`;
@@ -737,7 +741,7 @@ async function benchLoad() {
         <td>${badge(c.with.action, "sm")}<span class="conf">${(c.with.confidence ?? 0).toFixed(2)}</span></td>
         <td>${badge(c.without.action, "sm")}<span class="conf">${(c.without.confidence ?? 0).toFixed(2)}</span></td>
         <td class="mono">${esc((c.with.cited_all || []).join(", ")) || "—"}</td>
-        <td class="${c.with_ok && c.without_ok ? "ok" : "miss"}">${c.with_ok && c.without_ok ? "✓ as predicted" : "miss"}</td>
+        <td class="${c.with_ok && c.without_ok ? "ok" : "miss"}">${c.with_ok && c.without_ok ? "as predicted" : "miss"}</td>
         <td class="muted mono">${nf((c.with.tokens && c.with.tokens.in) || 0)} tok</td></tr>`;
     }).join("");
     body.innerHTML = `
@@ -811,7 +815,7 @@ $("bench-close").addEventListener("click", () => $("benchmark").close());
 $("benchmark").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 $("override-form").addEventListener("submit", overrideSubmit);
 document.querySelectorAll('input[name="action"]').forEach((r) =>
-  r.addEventListener("change", () => ($("override-btn").textContent = `Record override → ${overrideAction()}`)));
+  r.addEventListener("change", () => ($("ov-act").textContent = overrideAction())));
 document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => setTab(t.dataset.tab)));
 $("search").addEventListener("input", (e) => { S.q = e.target.value; renderQueue(); });
 $("type-chips").addEventListener("click", (e) => {

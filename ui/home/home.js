@@ -1,40 +1,12 @@
-/* OmegaDesk home — reads the desk API for its live status; holds no desk logic. */
+/* OmegaDesk home — a static page: no API calls, no desk logic. */
 "use strict";
 (() => {
 const $ = (id) => document.getElementById(id);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const get = (path) => fetch(path).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))));
-const set = (id, text, cls) => { const el = $(id); el.textContent = text; el.className = "lv " + (cls || ""); };
-
-function countUp(id, to) {
-  const el = $(id);
-  if (REDUCED) { el.textContent = to; return; }
-  const t0 = performance.now();
-  const step = (t) => {
-    const k = Math.min(1, (t - t0) / 900);
-    el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3)));
-    if (k < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
-
-async function status() {
-  get("/health").then((h) => set("s-model", h.llm_model)).catch(() => set("s-model", "api unreachable", "bad"));
-  get("/health/graph").then((g) => set("s-graph", g.status === "ok" ? "online" : "down", g.status === "ok" ? "ok" : "bad"))
-    .catch(() => set("s-graph", "unreachable", "bad"));
-  get("/monitor/alerts").then((a) => {
-    countUp("s-alerts", a.alerts.length);
-    $("h-al").textContent = String(a.alerts.length).padStart(6, "0");
-  }).catch(() => set("s-alerts", "—", "off"));
-  get("/cases").then((c) => countUp("s-cases", c.cases.length)).catch(() => set("s-cases", "—", "off"));
-  get("/sim/status").then((s) => set("s-sim", s.running ? `live · ${s.ticks} ticks` : "paused", s.running ? "ok" : "off"))
-    .catch(() => set("s-sim", "—", "off"));
-}
-
-/* legend: how many of the 11 steps each actor owns, so it is plain that the AI does very little */
+/* legend: how many of the steps each actor owns, so it is plain that the AI does very little */
 const steps = [...document.querySelectorAll(".step")];
-const ACTORS = [["sim", "simulator"], ["rules", "fixed rules"], ["ai", "AI"], ["code", "code"], ["human", "human"]];
-$("legend").innerHTML = ACTORS.map(([k, label]) => {
+const ACTORS = [["sim", "simulator"], ["rules", "fixed rules"], ["ai", "AI"], ["code", "rule ladder"], ["human", "human"]];
+$("legend").innerHTML = ACTORS.filter(([k]) => steps.some((s) => s.dataset.actor === k)).map(([k, label]) => {
   const n = steps.filter((s) => s.dataset.actor === k).length;
   return `<button class="actor ${k}" data-actor="${k}" type="button" style="background:none;cursor:pointer" title="Highlight the ${label} steps">${label}<b>${n}</b></button>`;
 }).join("");
@@ -59,19 +31,34 @@ const fill = () => {
 addEventListener("scroll", fill, { passive: true });
 fill();
 
-/* measured-tags ticker: the same tags the desk writes on every case (hover one for its rule) */
-const TAGS = [
-  ["many pay one", "bad", "FAN_IN · many different payers into one account"],
-  ["under the line", "bad", "SUB_THRESHOLD · payments just below ₹50,000"],
-  ["pass-through", "bad", "PASS_THROUGH · money in, straight back out"],
-  ["one device", "bad", "SHARED_DEVICE · one phone across accounts"],
-  ["tied to known fraud", "bad", "RING_MEMBER · device used by confirmed fraud"],
-  ["brand-new account", "bad", "NEW_ACCOUNT · opened under 30 days ago"],
-  ["known business", "good", "BUSINESS_KYC · the receiver is a verified business"],
-  ["regular billing", "good", "REGULAR_CADENCE · the business's normal schedule"],
-];
-const mq = TAGS.map(([t, c, sig]) => `<span class="mq-item ${c}" data-sig="${sig} · ${c === "bad" ? "looks suspicious" : "looks innocent"}">${t}<span class="mq-sep"></span></span>`).join("");
-$("mq-track").innerHTML = mq + mq;   // doubled for a seamless loop
+/* ---------- the island nav: floats, tightens on scroll, marks the section you are reading ---------- */
+const nav = $("nav");
+let lastY = scrollY;
+const onScroll = () => {
+  const y = scrollY;
+  nav.classList.toggle("scrolled", y > 24);
+  // scrolling down tucks the island away; any scroll up brings it straight back
+  if (y > lastY + 6 && y > 160) nav.classList.add("nav-hide");
+  else if (y < lastY - 6 || y <= 160) nav.classList.remove("nav-hide");
+  lastY = y;
+};
+addEventListener("scroll", onScroll, { passive: true });
+onScroll();
+const navLinks = [...nav.querySelectorAll('.nav-links a[href^="#"]')];
+const spy = new IntersectionObserver((entries) => entries.forEach((e) => {
+  if (!e.isIntersecting) return;
+  navLinks.forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + e.target.id));
+}), { rootMargin: "-45% 0px -50% 0px" });
+navLinks.forEach((a) => { const sec = document.querySelector(a.getAttribute("href")); if (sec) spy.observe(sec); });
+/* a tripped watcher rule takes over the island for a moment, then it morphs back */
+let islandT = 0;
+function island(code, plain) {
+  $("island-msg").innerHTML = `<i></i><b>${code}</b>${plain}<span>· fixed rule, no AI</span>`;
+  nav.classList.add("alerting");
+  nav.classList.remove("nav-hide");      // an alert always brings the island back into view
+  clearTimeout(islandT);
+  islandT = setTimeout(() => nav.classList.remove("alerting"), 2300);
+}
 
 /* ---------- the watcher: fixed rules, run live on the visitor's own cursor ----------
    Your pointer is treated like money moving through the bank. Plain maths, no AI:
@@ -109,8 +96,9 @@ const watcher = (() => {
     marks.push({ code, x, y, t: now, id: `AL-YOU-${String(trips).padStart(3, "0")}` });
     $("h-trip").textContent = String(trips).padStart(6, "0");
     const hl = $("h-last");
-    hl.textContent = `▲ ${code} · ${RULES[code].plain}`;
+    hl.textContent = `${code} · ${RULES[code].plain}`;
     hl.classList.remove("fresh"); void hl.offsetWidth; hl.classList.add("fresh");
+    island(code, RULES[code].plain);
     if (!raf) raf = requestAnimationFrame(draw);
   }
 
@@ -172,7 +160,7 @@ const watcher = (() => {
 
 if (matchMedia("(pointer: fine)").matches && !REDUCED) {
   document.addEventListener("pointermove", watcher.move, { passive: true });
-  document.querySelectorAll(".s-body, .who-card").forEach((el) => {
+  document.querySelectorAll(".s-body, .p-card, .ba-card").forEach((el) => {
     el.addEventListener("pointerenter", () => { el._in = performance.now(); });
     el.addEventListener("pointerleave", (e) => {
       if (el._in && performance.now() - el._in < 200) watcher.trip("PASS_THROUGH", e.clientX, e.clientY);
@@ -180,6 +168,4 @@ if (matchMedia("(pointer: fine)").matches && !REDUCED) {
   });
 }
 
-status();
-setInterval(status, 15000);
 })();
