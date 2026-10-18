@@ -32,6 +32,17 @@ def _rows(q, params=None):
     return get_graph().query(q, params or {}).result_set
 
 
+def _fresh_direct_id(about_id):
+    """open_case_direct CREATEs its Case, so re-investigating the same account (memory
+    on, then off) needs a new id — reusing one duplicates the case node."""
+    base = cid = f"CASE-{about_id}"
+    n = 1
+    while _rows("MATCH (c:Case {id:$id}) RETURN 1", {"id": cid}):
+        n += 1
+        cid = f"{base}-{n}"
+    return cid
+
+
 # ---------------------------------------------------------------- /cases
 @router.get("/cases")
 def list_cases():
@@ -166,7 +177,7 @@ def investigate(body: InvestigateBody):
         if body.alert_id:
             res = handle_alert(body.alert_id, ablated=body.ablated)
         else:
-            res = handle_direct_case(f"CASE-{body.about_id}", body.about_id, ablated=body.ablated)
+            res = handle_direct_case(_fresh_direct_id(body.about_id), body.about_id, ablated=body.ablated)
     except (ValueError, KeyError) as exc:
         raise HTTPException(400, str(exc))
     except Exception as exc:  # degrade-safe: never 500 a desk mid-demo

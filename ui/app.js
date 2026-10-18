@@ -71,6 +71,24 @@ function countUp(el, to, ms) {
   requestAnimationFrame(step);
 }
 
+/* ---------- plainen: no code-words on the screen, ever (even the AI's own words) ---------- */
+const CODE_PLAIN = [
+  [/pass[_-]?through/gi, "money arrives and leaves almost straight away"],
+  [/sub[_-]?threshold/gi, "payments kept just under the reporting line"],
+  [/fan[_-]?in/gi, "many people paying one account"],
+  [/shared[_-]?device/gi, "one device used by several accounts"],
+  [/shared[_-]?identity/gi, "the same identity details reused across accounts"],
+  [/ring[_-]?member/gi, "part of a connected group of accounts"],
+  [/new[_-]?account/gi, "a very new account"],
+  [/business[_-]?kyc/gi, "verified business paperwork"],
+  [/regular[_-]?cadence|cadence/gi, "a steady, usual rhythm of payments"],
+  [/\bkyc\b/gi, "identity checks"],
+  [/pass[_-]?ratio/gi, "share of money sent straight out again"],
+  [/ratio of\s*([\d.,]+)/gi, "share: $1"],
+  [/value of\s*([\d.,]+)/gi, "score $1"],
+];
+const plainen = (s) => CODE_PLAIN.reduce((t, [re, plain]) => t.replace(re, plain), String(s || ""));
+
 /* ---------- plain-English layer (the desk speaks human; codes live in hover-tips) ---------- */
 const SIG_PLAIN = {
   FAN_IN: "many different people paid one account at the same time",
@@ -131,9 +149,11 @@ function inShort(c) {
     ? "The receipt of checks proved it clean, so the desk cleared it itself."
     : cited
       ? "The desk's memory of past cases shaped this."
-      : corrected
+      : corrected && d.action === "escalate"
         ? "A past case was corrected before, so the desk wants a human to decide."
-        : (d.action === "freeze"
+        : (d.cites || []).length
+          ? "It checked the desk's memory, found no past case that fits, and decided on the evidence."
+          : (d.action === "freeze"
             ? "The raw pattern alone was strong enough to act without memory."
             : "The desk decided without clear memory guidance.");
   return `${act}. Why: ${parts.join(" · ") || "the account's own history"}. ${mem}`;
@@ -394,16 +414,26 @@ function startProgress(alertId, ablated) {
 }
 
 async function investigate() {
-  if (!S.selectedAlert || S.busy) return;
+  if (!S.selectedAlert) return;
+  await runInvestigation(S.selectedAlert, { alert_id: S.selectedAlert });
+}
+
+/* direct case (scenario E): the monitor stays quiet, so there is no alert to pick */
+const investigateAccount = (accountId) => {
+  selectAlert(null);  // no alert behind this case: drop the previous selection line
+  return runInvestigation(accountId, { about_id: accountId });
+};
+
+async function runInvestigation(label, target) {
+  if (S.busy) return;
   S.busy = true;
   updateSelected();
-  const alertId = S.selectedAlert;
   const ablated = $("ablated").checked;
-  const stop = startProgress(alertId, ablated);
+  const stop = startProgress(label, ablated);
   try {
     const res = await api("/cases/investigate", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ alert_id: alertId, ablated }),
+      body: JSON.stringify({ ...target, ablated }),
     });
     const c = await api(`/cases/${res.case_id}`);
     stop(true);
@@ -530,7 +560,7 @@ function renderCase(c, runRes) {
   /* 02 — the AI's own words */
   const aiVoice = ad
     ? `<div class="card ai-voice" style="--i:1">${h3(++no, "What the AI investigator says")}
-         <div class="aitt" id="ai-text">“${esc(ad.rationale || "—")}”</div>
+         <div class="aitt" id="ai-text">“${esc(plainen(ad.rationale) || "—")}”</div>
          <div class="hint">This is the agent's own written reasoning, exactly as stored in the decision (replayable in the graph).</div></div>`
     : "";
   const memo = runRes ? ablateNote(runRes.ablated, d) : "";
@@ -557,11 +587,15 @@ function renderCase(c, runRes) {
     const s = c.scope.find((x) => x.account === id);
     return s ? scopeName(s) : id;
   };
+  /* name the cited precedent on screen — the citation IS the memory beat */
+  const precKind = (id) => /^(HOV-|D-OV-)/.test(id) ? "an analyst's correction"
+    : /^D-20\d\d-/.test(id) ? `a ${id.slice(2, 6)} case` : "a past desk decision";
   const trail = c.decisions.map((x) => {
     const xc = Math.round((x.confidence || 0) * 100);
     const cites = x.cites.map((ct) =>
       `<div class="prec" data-sig="cites ${esc(ct.decision_id)} · ${ct.applies ? "applies" : "does not apply"}"><div class="head">
-        <span class="applies ${ct.applies ? "y" : "n"}">${ct.applies ? "This past case applies here" : "The agent decided this past case does NOT apply here"}</span>
+        <span class="applies ${ct.applies ? "y" : "n"}">${ct.applies ? "This past case applies here" : "The agent decided this past case does NOT apply here"}:
+          <b class="mono">${esc(ct.decision_id)}</b> <span class="muted">· ${esc(precKind(ct.decision_id))}</span></span>
         ${ct.distinguishing && ct.distinguishing.length ? `<span class="dist">different because: ${esc(ct.distinguishing.map((s) => SIG_PLAIN[s] || s).join("; "))}</span>` : (ct.applies ? "" : `<span class="dist">(no reason recorded)</span>`)}</div></div>`).join("");
     const ov = x.overridden_by.map((o) =>
       `<div class="dist ov">Corrected by a human: “${esc(o.reason)}”</div>`).join("");
@@ -601,7 +635,7 @@ function renderCase(c, runRes) {
   const repBody = rep ? rep.report : (c.report && c.report.body);
   const repCard = repBody
     ? `<div class="card rep" style="--i:8">${h3(9, "Case report — written by the AI, sources checked", c.report && c.report.model ? esc(c.report.model) : "")}
-         <div class="rept">${esc(repBody)}</div>
+         <div class="rept">${esc(plainen(repBody))}</div>
          <div class="hint">sources: <span class="q">${esc((rep && rep.sources || []).join(" · ") || "stored on the case")}</span></div>
          <a class="dl" href="/cases/${esc(c.case_id)}/report.md" download>${ic("download")}Download the report (.md)</a></div>`
     : "";
@@ -628,7 +662,7 @@ function renderCase(c, runRes) {
     document.querySelectorAll("#case-body .bar > div").forEach((b) => (b.style.width = b.dataset.w + "%"));
     document.querySelectorAll("#case-body .cnt").forEach((el) => countUp(el, +el.dataset.to, 1100));
   });
-  if (runRes && ad) typewrite($("ai-text"), `“${ad.rationale || "—"}”`);
+  if (runRes && ad) typewrite($("ai-text"), `“${plainen(ad.rationale) || "—"}”`);
 
   $("report-btn").onclick = writeReport;
   const mode = S.mode && S.mode.case_id === c.case_id
@@ -801,6 +835,69 @@ function runPalette(i) {
   if (x) x.run();
 }
 function openBench() { $("benchmark").showModal(); benchLoad(); }
+
+/* ---------- demo tools: the inject buttons (all-UI demo, no terminal) ---------- */
+const DEMO_NAMES = { A: "phone-sharing ring", B: "clean funnel", C: "verified business",
+  E: "trap", CP: "look-alike", D: "dark look-alike" };
+const EMPTY_CASE = $("case-body").innerHTML;  // the "Every alert is a question" welcome, restored on reset
+(() => {
+  const open = $("demo-open"), menu = $("demo-menu");
+  if (!open || !menu) return;
+  open.addEventListener("click", (e) => {
+    e.stopPropagation();
+    menu.classList.toggle("hidden");
+  });
+  document.addEventListener("click", (e) => {
+    if (!menu.classList.contains("hidden") && !e.target.closest(".demo-wrap")) menu.classList.add("hidden");
+  });
+  menu.querySelectorAll(".demo-item").forEach((b) => b.addEventListener("click", async () => {
+    const code = b.dataset.inject;
+    if (code === "RESET" && !window.confirm("Reset to a fresh world? This wipes all cases, overrides and reports, and replants the seed baseline.")) return;
+    b.disabled = true;
+    toast(code === "RESET" ? "replanting a fresh world…" : `planting the ${DEMO_NAMES[code] || code}…`);
+    try {
+      if (code === "RESET") {
+        const r = await api("/sim/reseed", { method: "POST" });
+        toast("fresh world planted — the queue is back to the seed baseline");
+        S.firstSeen.clear();
+        S.currentCase = null; S.report = null; S.mode = null; S.selectedAlert = null;
+        $("case-body").innerHTML = EMPTY_CASE;
+        $("case-id").className = "case-id muted"; $("case-id").textContent = "no case open";
+        $("override-target").className = "ov-target muted";
+        $("override-target").textContent = "Open a case to correct its decision.";
+        $("override-btn").disabled = true; $("override-note").textContent = "";
+        updateSelected();
+        S.alerts = [];
+        S.booted = false;  // the replanted seed is the baseline, not news: no NEW tags on it
+        await refreshAlerts();
+        S.booted = true;
+      } else if (code === "CP") {
+        await api("/sim/inject/CP", { method: "POST" });
+        toast("planted: a new batch of the same shape — press Investigate again; the new case should cite the override");
+        S.selectedAlert = S.selectedAlert || null;
+      } else if (code === "E") {
+        // no alert to re-select for the trap, so a second click re-runs it (memory on/off beat)
+        try {
+          await api("/sim/inject/E", { method: "POST" });
+          toast("planted — too quiet for the monitor, so the desk opens a case on A-E1 directly");
+        } catch (e3) {
+          if (!/already planted/.test(e3.message)) throw e3;
+          toast(`re-investigating the trap ${$("ablated").checked ? "WITHOUT" : "with"} memory`);
+        }
+        menu.classList.add("hidden");
+        await investigateAccount("A-E1");
+      } else {
+        const r = await api(`/sim/inject/${code}`, { method: "POST" });
+        const aid = (r.monitor_scan && r.monitor_scan.alerts_created || []).map(a => a.id).join(", ");
+        toast(aid ? `planted — alert ${aid} is in the queue` : "planted, but it sits outside the live monitoring window — try Reset to a fresh world first", !aid);
+      }
+      menu.classList.add("hidden");
+      await Promise.all([refreshAlerts(), refreshCases()]);
+      renderQueue();
+    } catch (e2) { toast(`demo tools: ${e2.message}`, true); }
+    finally { b.disabled = false; }
+  }));
+})();
 
 /* ---------- wire ---------- */
 $("refresh").addEventListener("click", (e) => {

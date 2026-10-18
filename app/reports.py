@@ -24,7 +24,11 @@ def build_report(case_id, facts, client=None):
 
     decision = facts["decisions"][-1]
     lines = [
-        "Write the desk's case report. PLAIN LANGUAGE for a compliance supervisor.",
+        "Write the desk's case report. PLAIN LANGUAGE for a compliance supervisor — nobody",
+        "technical should have to decode it. Never use the internal code-words (PASS_THROUGH,",
+        "FAN_IN, SHARED_DEVICE, SUB_THRESHOLD, KYC and the like); describe them in everyday",
+        "words instead, e.g. 'money arrives and leaves almost straight away' instead of",
+        "PASS_THROUGH, 'many people paying one account' instead of FAN_IN.",
         "Rules: ≤180 words; every factual claim must end with its source in square brackets",
         "using the SOURCES list I give you; if a claim has no listed source, don't make it.",
         "",

@@ -131,7 +131,9 @@ JSON_FALLBACK = re.compile(r"\{.*\}", re.DOTALL)
 def _client():
     if not LLM_API_KEY:
         raise RuntimeError("LLM_API_KEY missing in ~/omegadesk/.env — C1 needs it")
-    return OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)
+    # SDK default is a 600s timeout × 2 retries: one stalled cloud request froze a case for
+    # minutes. 60s per call is ~5× a normal step; _call's backoff loop retries the timeout.
+    return OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=60, max_retries=1)
 
 
 def _schema_args(tc):

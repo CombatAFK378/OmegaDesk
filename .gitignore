@@ -7,4 +7,5 @@ uvicorn.log
 journal.jsonl
 # internal strategy — kept out of the public repo
 architecture.md
+RECORDING_SCRIPT.md
 benchmark_report.json

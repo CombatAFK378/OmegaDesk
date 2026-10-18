@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <canvas id="field" aria-hidden="true"></canvas>
@@ -35,6 +35,19 @@
       <span class="live-dot"></span><span class="live-label">Start live stream</span>
     </button>
     <button id="bench-open" class="ghost">With / without proof</button>
+    <div class="demo-wrap">
+      <button id="demo-open" class="ghost" title="Plant the demo stories">🎬 Demo tools</button>
+      <div id="demo-menu" class="demo-menu hidden" role="menu">
+        <button class="demo-item" data-inject="A"  role="menuitem"><b>1 · Plant the phone-sharing ring</b><small>5 new accounts on one phone, funnelling to an exit wallet — freezes, cites the 2025 ring</small></button>
+        <button class="demo-item" data-inject="B"  role="menuitem"><b>2 · Plant the clean funnel</b><small>8 unrelated payers into one wallet — investigate twice: memory on, then off</small></button>
+        <button class="demo-item" data-inject="C"  role="menuitem"><b>3 · Plant the verified business</b><small>10 fresh payers into a checked merchant — clears with a receipt</small></button>
+        <button class="demo-item" data-inject="E"  role="menuitem"><b>4 · Plant the trap (investigates itself)</b><small>too quiet for the monitor, so the desk opens the case directly — must cite the correction, never the overruled decision. Click again to re-run (e.g. with Without memory on)</small></button>
+        <button class="demo-item" data-inject="CP" role="menuitem"><b>5 · Plant its look-alike</b><small>refreshes the same alert with new payers — press Investigate again for the memory beat</small></button>
+        <button class="demo-item" data-inject="D"  role="menuitem"><b>6 · Plant the dark look-alike</b><small>same crowd, no verified paperwork — the refusal beat</small></button>
+        <div class="demo-note">plant in this order, and investigate each one before planting the next</div>
+        <button class="demo-item danger" data-inject="RESET" role="menuitem"><b>Reset to a fresh world</b><small>wipes everything and replants the seed — do this FIRST when rehearsing/recording</small></button>
+      </div>
+    </div>
   </div>
 </header>
 <div id="ticker" class="ticker hidden" aria-label="Live alert stream"><div class="ticker-track" id="ticker-track"></div></div>
@@ -154,7 +167,7 @@
 </footer>
 
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="hover.js"></script>
-<script src="app.js"></script>
+<script src="hover.js?v=2"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

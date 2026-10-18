@@ -337,7 +337,25 @@ a.dl {
   text-decoration: none; border: 1px solid var(--line2); padding: 6px 14px; border-radius: var(--r-ctl);
 }
 a.dl:hover { border-color: var(--faint); background: var(--panel3); }
-.row.btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.row.btns { display: flex; gap: 10px; margin-top: 4px; }
+.demo-wrap { position: relative; }
+/* solid on purpose: a backdrop-filter can't blur through the topbar's own glass layer */
+.demo-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60;
+  width: 360px; max-width: calc(100vw - 32px); max-height: calc(100vh - 90px); overflow-y: auto;
+  background: #141820;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 10px;
+  display: grid; gap: 6px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 24px 60px rgba(0, 0, 0, .65); }
+.demo-menu.hidden { display: none; }
+.demo-menu .demo-item { white-space: normal; text-align: left; background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 9px 12px; cursor: pointer;
+  display: grid; gap: 3px; }
+.demo-menu .demo-item:hover { border-color: var(--accent); background: rgba(52,132,214,.12); }
+.demo-item b { font-size: 13px; color: var(--text); }
+.demo-item small { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.demo-note { font-size: 10.5px; color: var(--muted); padding: 2px 4px; }
+.demo-menu .demo-item.danger { border-color: rgba(255, 120, 120, .3); }
+.demo-menu .demo-item.danger:hover { border-color: #ff8080; background: rgba(242, 85, 90, .1); }
+.demo-item.danger b { color: #ffb0b0; }
 
 /* money-flow map */
 .flow svg { width: 100%; height: auto; display: block; overflow: visible; }
