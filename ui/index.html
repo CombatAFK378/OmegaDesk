@@ -3,79 +3,158 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>OmegaDesk — AML investigation desk</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='12' fill='none' stroke='%23ffffff' stroke-width='4'/><circle cx='16' cy='16' r='4' fill='%23479ffa'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <div class="brand"><span class="logo">◎</span> OmegaDesk <span class="sub">AML investigation desk</span></div>
-  <div class="health" id="health">checking graph…</div>
-  <div class="model" id="model"></div>
+<canvas id="field" aria-hidden="true"></canvas>
+<div id="reticle" aria-hidden="true"><i></i></div>
+<div id="probe" aria-hidden="true"></div>
+<div id="boot" aria-hidden="true"><canvas id="boot-canvas" width="360" height="220"></canvas>
+  <div class="boot-foot"><span>OmegaDesk</span><b id="boot-pct">0</b><span id="boot-msg">Calibrating signal field</span></div></div>
+<header class="topbar">
+  <a class="brand" href="home/" title="OmegaDesk home">
+    <span class="logo" aria-hidden="true"></span>
+    <span class="name">OmegaDesk</span>
+    <span class="sub">AML investigation desk</span>
+  </a>
+  <button id="pal-open" class="search-pill" title="Jump to anything (Ctrl+K)">
+    <span>Jump to an alert, case or action…</span><kbd>Ctrl K</kbd>
+  </button>
+  <div class="status">
+    <span class="health" id="health"><span class="dot"></span>checking graph…</span>
+    <span class="model" id="model"></span>
+  </div>
+  <div class="top-actions">
+    <button id="sim-live" class="ghost live" data-on="0" title="Start or stop the simulated payment stream">
+      <span class="live-dot"></span><span class="live-label">Start live stream</span>
+    </button>
+    <button id="bench-open" class="ghost">With / without proof</button>
+  </div>
 </header>
+<div id="ticker" class="ticker hidden" aria-label="Live alert stream"><div class="ticker-track" id="ticker-track"></div></div>
 
-<main>
-  <!-- LEFT: alerts -->
-  <section class="col left">
-    <div class="col-head">
-      <h2>Alerts</h2>
-      <button id="refresh" class="ghost">↻ refresh</button>
+<main class="layout">
+  <!-- LEFT: the queue -->
+  <section class="panel queue" aria-label="Alert queue">
+    <div class="tabs" role="tablist">
+      <button role="tab" class="tab active" id="tab-alerts" aria-selected="true" data-tab="alerts">
+        Alerts <span class="count" id="alert-count">–</span></button>
+      <button role="tab" class="tab" id="tab-cases" aria-selected="false" data-tab="cases">
+        Past cases <span class="count" id="case-count">–</span></button>
+      <button id="refresh" class="icon-btn" title="Refresh now" aria-label="Refresh">↻</button>
     </div>
-    <div id="alerts" class="alert-list"><div class="muted">loading…</div></div>
-    <div class="hint">Suspicious patterns the automatic monitor caught. Pick one → investigate.</div>
+
+    <div class="filters">
+      <input id="search" type="search" placeholder="Search account, alert or case   /" autocomplete="off" aria-label="Search the queue">
+      <div id="type-chips" class="chips"></div>
+    </div>
+
+    <div id="alerts" class="list" role="listbox" aria-label="Alerts"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div id="cases" class="list hidden" role="listbox" aria-label="Past cases"></div>
+    <div class="hint" id="queue-hint">Suspicious patterns the automatic monitor caught. Pick one, then investigate it.</div>
   </section>
 
-  <!-- RIGHT: case -->
-  <section class="col right">
-    <div class="col-head">
-      <h2>Case</h2>
-      <div id="case-id" class="muted">no case open</div>
+  <!-- CENTER: the case -->
+  <section class="panel case" aria-label="Case">
+    <div class="case-head">
+      <div>
+        <h2>Case</h2>
+        <div id="case-id" class="case-id muted">no case open</div>
+      </div>
+      <div class="toolbar">
+        <label class="switch" title="Run the investigator with its memory of past cases switched off, to compare">
+          <input type="checkbox" id="ablated"><span class="track"><span class="thumb"></span></span>
+          <span>Without memory</span>
+        </label>
+        <button id="investigate" class="primary" disabled>Investigate selected alert</button>
+      </div>
     </div>
+    <div id="selected-line" class="selected-line hidden"></div>
 
-    <div class="toolbar">
-      <button id="investigate" class="primary" disabled>▣ Investigate selected alert</button>
-      <label class="chk"><input type="checkbox" id="ablated"> without memory (ablated)</label>
-      <span id="inv-status" class="muted"></span>
+    <div id="inv-status" class="progress hidden" aria-live="polite"></div>
+
+    <div id="case-body">
+      <div class="empty">
+        <div class="empty-title">Every alert is a question.<br><span>The desk answers it with <em class="serif">evidence.</em></span></div>
+        <ol class="steps-how">
+          <li><b>Pick an alert</b><span>from the queue. Each one is a suspicious pattern the monitor caught.</span></li>
+          <li><b>Investigate</b><span>Fixed rules measure the pattern. Then the AI reads the evidence and the desk's memory of past cases.</span></li>
+          <li><b>Review &amp; correct</b><span>Agree with it, or record an override. Your correction becomes a lesson for future cases.</span></li>
+        </ol>
+      </div>
     </div>
+  </section>
 
-    <div id="case-body"><div class="muted">Pick an alert on the left, then press Investigate.<br>
-      The desk opens a case, measures the pattern with fixed rules, and the AI investigator reads the evidence and past cases before giving its opinion.</div></div>
-
-    <div class="col-head over"><h2>Human override</h2><span class="muted">the analyst's correction becomes a lesson for future cases</span></div>
+  <!-- RIGHT: the human override -->
+  <aside class="panel override" aria-label="Human override">
+    <h2>Human override</h2>
+    <p class="muted small">The analyst's correction becomes a lesson for future cases.</p>
+    <div id="override-target" class="ov-target muted">Open a case to correct its decision.</div>
     <form id="override-form">
-      <div class="row">
+      <label class="fld">Analyst
         <select id="analyst">
           <option value="AN-PRIYA">AN-PRIYA</option>
           <option value="AN-DEV">AN-DEV</option>
         </select>
-        <select id="action">
-          <option>clear</option>
-          <option>escalate</option>
-          <option>monitor</option>
-          <option>freeze</option>
-        </select>
+      </label>
+      <div class="fld">Correct action to
+        <div class="seg" role="radiogroup" aria-label="Corrected action">
+          <label class="seg-opt clear"><input type="radio" name="action" value="clear" checked><span>clear</span></label>
+          <label class="seg-opt monitor"><input type="radio" name="action" value="monitor"><span>monitor</span></label>
+          <label class="seg-opt escalate"><input type="radio" name="action" value="escalate"><span>escalate</span></label>
+          <label class="seg-opt freeze"><input type="radio" name="action" value="freeze"><span>freeze</span></label>
+        </div>
       </div>
-      <textarea id="reason" rows="2" placeholder="required — a correction without a written reason is not recorded"></textarea>
-      <button id="override-btn" class="warn" type="submit" disabled>⚖ record override</button>
-      <div id="override-note" class="muted"></div>
+      <label class="fld">Written reason
+        <textarea id="reason" rows="4" placeholder="Required. A correction without a written reason is not recorded."></textarea>
+      </label>
+      <button id="override-btn" class="warn" type="submit" disabled>Record override → clear</button>
+      <div id="override-note" class="ov-note muted"></div>
     </form>
-  </section>
+  </aside>
 </main>
 
-<!-- BENCHMARK drawer -->
-<section id="benchmark" class="hidden">
-  <div class="col-head">
-    <h2>The proof — same cases, with and without the desk's memory</h2>
-    <div><button id="bench-load" class="ghost">load last report</button><button id="bench-close" class="ghost">✕</button></div>
+<!-- BENCHMARK modal -->
+<dialog id="benchmark" aria-labelledby="bench-title">
+  <div class="modal-head">
+    <div>
+      <h2 id="bench-title">The proof</h2>
+      <div class="muted">Same cases, with and without the desk's memory</div>
+    </div>
+    <div class="modal-actions">
+      <button id="bench-load" class="ghost">↻ Reload</button>
+      <button id="bench-close" class="icon-btn" aria-label="Close">✕</button>
+    </div>
   </div>
   <div id="bench-body"><div class="muted">Run the benchmark once (scripts/c1_exit_test.py), then load it here.</div></div>
-</section>
+</dialog>
+
+<!-- COMMAND PALETTE -->
+<dialog id="palette" aria-label="Jump to">
+  <input id="pal-q" type="text" placeholder="Jump to an alert, a case, or an action…" autocomplete="off" aria-label="Search">
+  <div id="pal-list" role="listbox"></div>
+  <div class="pal-foot"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>Enter</kbd> open · <kbd>Esc</kbd> close</div>
+</dialog>
 
 <footer>
-  <button id="bench-open" class="ghost">📊 the with/without proof</button>
-  <span class="muted">Every decision is stored in the graph with its evidence — reproducible, not vibes.</span>
+  <span class="hud">
+    <span>FIG. 01 — LIVE SIGNAL FIELD</span>
+    <span class="hud-hide">EVERY DECISION STORED WITH ITS EVIDENCE</span>
+    <span>X <b id="hx">0.000</b> Y <b id="hy">0.000</b></span>
+    <span>ALERTS <b id="h-al">000000</b></span>
+    <span>CASES <b id="h-cs">000000</b></span>
+  </span>
+  <span class="kbd-hint muted"><kbd>Ctrl K</kbd> jump · <kbd>/</kbd> search · <kbd>↑</kbd><kbd>↓</kbd> move · <kbd>Enter</kbd> investigate</span>
 </footer>
 
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="hover.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

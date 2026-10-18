@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>OmegaDesk — every alert, answered with evidence</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='12' fill='none' stroke='%23ffffff' stroke-width='4'/><circle cx='16' cy='16' r='4' fill='%23479ffa'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="home.css">
+</head>
+<body>
+<canvas id="field" aria-hidden="true"></canvas>
+<canvas id="watch" aria-hidden="true"></canvas>
+<div id="reticle" aria-hidden="true"><i></i></div>
+<div id="probe" aria-hidden="true"></div>
+
+<nav class="nav">
+  <a class="brand" href="./"><span class="logo" aria-hidden="true"></span>OmegaDesk</a>
+  <div class="nav-links">
+    <a href="#story">A day at the desk</a>
+    <a href="#who">Who decides</a>
+  </div>
+  <a class="btn primary sm" href="../">Open the desk →</a>
+</nav>
+
+<header class="hero">
+  <div class="eyebrow"><span class="dot"></span>AML investigation desk · graph-backed · human in the loop</div>
+  <h1>Every alert,<br><em class="serif">answered</em> with evidence.</h1>
+  <p class="lede">Fixed rules spot the suspicious shapes in the money. An AI investigator reads the evidence and the desk's
+    memory of past cases. Code decides the action, and a human can always correct it. Every step is stored in the graph
+    and can be replayed.</p>
+  <div class="cta">
+    <a class="btn primary" href="../">Open the desk →</a>
+    <a class="btn ghost" href="#story">See how a case flows</a>
+  </div>
+
+  <div class="term" aria-label="Live desk status">
+    <div class="term-bar"><i></i><i></i><i></i><span>desk · live status</span></div>
+    <div class="leaders">
+      <div class="lead" data-sig="GET /health/graph · the single source of truth"><span class="lk">graph</span><span class="ld"></span><span class="lv" id="s-graph">checking…</span></div>
+      <div class="lead" data-sig="GET /health · the investigator's model"><span class="lk">ai model</span><span class="ld"></span><span class="lv" id="s-model">—</span></div>
+      <div class="lead" data-sig="GET /monitor/alerts · caught by fixed rules"><span class="lk">alerts in the queue</span><span class="ld"></span><span class="lv" id="s-alerts">—</span></div>
+      <div class="lead" data-sig="GET /cases · every case the desk opened"><span class="lk">cases on record</span><span class="ld"></span><span class="lv" id="s-cases">—</span></div>
+      <div class="lead" data-sig="GET /sim/status · the simulated bank"><span class="lk">live payment stream</span><span class="ld"></span><span class="lv" id="s-sim">—</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="marquee" aria-label="What the watcher measures">
+  <div class="mq-track" id="mq-track"></div>
+</div>
+
+<section class="section" id="story">
+  <div class="sec-head">
+    <div class="eyebrow num"><span>01</span><span class="ln"></span>A day at the desk</div>
+    <h2>Money walks through the door.<br><span class="dim">Here is everyone who touches it.</span></h2>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <ol class="story">
+    <li class="step" data-actor="sim" data-sig="Step 01 · simulator · the world the desk watches">
+      <div class="s-no">01</div>
+      <div class="s-body"><div class="s-top"><h3>The world</h3><span class="actor sim">simulator</span></div>
+        <p>A simulated bank runs on its own. People open accounts, use devices, buy from merchants and move money.
+          Realistic fraud shapes are planted inside the ordinary traffic.</p></div>
+    </li>
+    <li class="step" data-actor="rules" data-sig="Step 02 · fixed rules · no AI">
+      <div class="s-no">02</div>
+      <div class="s-body"><div class="s-top"><h3>The watcher</h3><span class="actor rules">fixed rules</span></div>
+        <p>Every few moments, simple maths checks the money. Did one account receive from many people? Did money leave the
+          moment it arrived? Are payments hiding just under the reporting line? Is one device shared across accounts?
+          When a shape is strong enough, an alert appears in plain words.</p></div>
+    </li>
+    <li class="step" data-actor="rules" data-sig="Step 03 · fixed rules · the shape of the crowd">
+      <div class="s-no">03</div>
+      <div class="s-body"><div class="s-top"><h3>The case file</h3><span class="actor rules">fixed rules</span></div>
+        <p>Investigating opens a case: the suspect account plus everyone around it in that time window, senders and
+          receivers. The pattern lives in the shape of the crowd, not in one account alone.</p></div>
+    </li>
+    <li class="step" data-actor="rules" data-sig="Step 04 · fixed rules · tags marked guilty- or innocent-looking">
+      <div class="s-no">04</div>
+      <div class="s-body"><div class="s-top"><h3>The measuring</h3><span class="actor rules">fixed rules</span></div>
+        <p>Still no AI. The desk writes down what it measured, one tag per pattern, each marked as guilty-looking or innocent-looking.</p>
+        <div class="tags">
+          <span class="tg bad">many pay one</span><span class="tg bad">under the line</span><span class="tg bad">one device</span>
+          <span class="tg bad">pass-through</span><span class="tg good">known business</span></div></div>
+    </li>
+    <li class="step key" data-actor="ai" data-sig="Step 05 · AI · the investigator's only job">
+      <div class="s-no">05</div>
+      <div class="s-body"><div class="s-top"><h3>The AI investigator</h3><span class="actor ai">AI</span></div>
+        <p>The AI's only job. It reads the file and asks the graph questions one at a time: who else shares this device,
+          where did the money go next, are these accounts new? It reads the desk's memory of past cases and human corrections,
+          decides which old cases really match, then answers in a fixed format.</p>
+        <div class="leaders mini">
+          <div class="lead"><span class="lk">verdict</span><span class="ld"></span><span class="lv">fraud · legit · unclear</span></div>
+          <div class="lead"><span class="lk">confidence</span><span class="ld"></span><span class="lv">bold or humble, by rule</span></div>
+          <div class="lead"><span class="lk">cases it leaned on</span><span class="ld"></span><span class="lv">named, one by one</span></div>
+        </div></div>
+    </li>
+    <li class="step" data-actor="code" data-sig="Step 06 · code · the AI never picks the action">
+      <div class="s-no">06</div>
+      <div class="s-body"><div class="s-top"><h3>The guard</h3><span class="actor code">code</span></div>
+        <p>Fixed rules turn the verdict into an action. There are two hard guard rails. The AI may never clear an account just
+          because an old case did; clearing needs fresh proof. And to disagree with a corrected old case, it must name exactly
+          what is different today.</p></div>
+    </li>
+    <li class="step" data-actor="code" data-sig="Step 07 · code · a sealed, re-runnable proof of absence">
+      <div class="s-no">07</div>
+      <div class="s-body"><div class="s-top"><h3>The receipt</h3><span class="actor code">code</span></div>
+        <p>When the action is a clearance, a tool proves the clean look. A checklist of checks all come back clean, and
+          the result is sealed to the decision like a signed slip that can be re-run at any time.</p></div>
+    </li>
+    <li class="step" data-actor="human" data-sig="Step 08 · human · routed to the right analyst">
+      <div class="s-no">08</div>
+      <div class="s-body"><div class="s-top"><h3>The human</h3><span class="actor human">human</span></div>
+        <p>Real cases land with the right analyst: device-ring cases go to one desk, business cases to another. An analyst who
+          disagrees can override, but only with a written reason.</p></div>
+    </li>
+    <li class="step" data-actor="human" data-sig="Step 09 · human · memory grows only through decisions">
+      <div class="s-no">09</div>
+      <div class="s-body"><div class="s-top"><h3>The lesson</h3><span class="actor human">human</span></div>
+        <p>That reason is saved as a correction. Future similar cases cite it like case law, and the old precedent it beat is
+          marked "never cite again". Memory only grows through decisions, never through silence.</p></div>
+    </li>
+    <li class="step" data-actor="ai" data-sig="Step 10 · AI · one call, every sentence sourced">
+      <div class="s-no">10</div>
+      <div class="s-body"><div class="s-top"><h3>The written record</h3><span class="actor ai">AI</span></div>
+        <p>Any closed case becomes a readable report for a supervisor. Every sentence carries its source: the decision,
+          the measurements, the receipt and the past cases.</p></div>
+    </li>
+    <li class="step" data-actor="code" data-sig="Step 11 · code · six known cases, replayed twice">
+      <div class="s-no">11</div>
+      <div class="s-body"><div class="s-top"><h3>The proof</h3><span class="actor code">code</span></div>
+        <p>A built-in test replays six known cases twice, once with memory and once without, and shows which decisions
+          changed. Then the desk keeps working live as new alerts arrive on their own.</p></div>
+    </li>
+  </ol>
+</section>
+
+<section class="section" id="who">
+  <div class="sec-head">
+    <div class="eyebrow num"><span>02</span><span class="ln"></span>Who decides what</div>
+    <h2>The AI gives an <em class="serif">opinion.</em><br><span class="dim">Code acts on it. A human has the last word.</span></h2>
+  </div>
+  <div class="who">
+    <div class="who-card" data-sig="AI · verdict + confidence + cited cases">
+      <span class="actor ai">AI</span>
+      <h3>Reads and reasons</h3>
+      <p>Reads the evidence and the memory, then returns a verdict, a confidence and the cases it leaned on. It never picks the action.</p>
+    </div>
+    <div class="who-card" data-sig="code · confidence → action, by fixed rule">
+      <span class="actor code">code</span>
+      <h3>Turns confidence into action</h3>
+      <div class="leaders">
+        <div class="lead"><span class="lk">high confidence</span><span class="ld"></span><span class="lv a-freeze">freeze</span></div>
+        <div class="lead"><span class="lk">medium</span><span class="ld"></span><span class="lv a-escalate">escalate</span></div>
+        <div class="lead"><span class="lk">low</span><span class="ld"></span><span class="lv a-monitor">monitor</span></div>
+        <div class="lead"><span class="lk">proven clean</span><span class="ld"></span><span class="lv a-clear">clear, with receipt</span></div>
+      </div>
+    </div>
+    <div class="who-card" data-sig="human · override needs a written reason">
+      <span class="actor human">human</span>
+      <h3>Corrects, in writing</h3>
+      <p>An analyst can override any decision with a written reason. That reason becomes a lesson that future cases cite.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <h2>Pick an alert. <em class="serif">Watch it get answered.</em></h2>
+  <a class="btn primary" href="../">Open the desk →</a>
+</section>
+
+<footer class="hud">
+  <span>FIG. 01 — THE WATCHER</span>
+  <span class="hud-hide">MOVE YOUR CURSOR. FIXED RULES ARE WATCHING IT.</span>
+  <span>X <b id="hx">0.000</b> Y <b id="hy">0.000</b></span>
+  <span>RULES TRIPPED <b id="h-trip">000000</b></span>
+  <span>AI CALLS <b>0</b></span>
+  <span>ALERTS IN QUEUE <b id="h-al">000000</b></span>
+  <span class="hud-last" id="h-last"></span>
+</footer>
+
+<script src="../hover.js"></script>
+<script src="home.js"></script>
+</body>
+</html>

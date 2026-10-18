@@ -1,37 +1,18 @@
-/* OmegaDesk desk UI — vanilla JS, no build step, no frameworks (zero console errors). */
+/* OmegaDesk desk UI — vanilla JS, no build step, no frameworks (zero console errors).
+   Every visual is drawn from what the desk API already returns: nothing on screen is invented. */
 "use strict";
 const $ = (id) => document.getElementById(id);
-let selectedAlert = null;
-let currentCase = null;
-let currentReport = null;
-async function writeReport() {
-  if (!currentCase || busy) return;
-  busy = true;
-  toast("writing the case report — one AI call…");
-  try {
-    currentReport = await api(`/cases/${currentCase}/report`, { method: "POST" });
-    const c = await api(`/cases/${currentCase}`);
-    renderCase(c);
-    toast("report ready — with every source named");
-  } catch (e) { toast(`report: ${e.message}`, true); }
-  finally { busy = false; wireButtons(); }
-}
-async function simToggle() {
-  const b = $("sim-live");
-  const stopping = b.dataset.on === "1";
-  try {
-    await api(stopping ? "/sim/stop" : "/sim/start?interval=2", { method: "POST" });
-    b.dataset.on = stopping ? "0" : "1";
-    b.textContent = stopping ? "▶ make alerts stream live" : "⏹ stop the live stream";
-    toast(stopping ? "live stream stopped" : "the world is live — new alerts arrive by themselves", !stopping);
-  } catch (e) { toast(`sim: ${e.message}`, true); }
-}
-function wireButtons() {
-  const rb = $("report-btn");
-  if (rb) rb.addEventListener("click", writeReport);
-  const sb = $("sim-live");
-  if (sb) sb.addEventListener("click", simToggle);
-}
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const S = {
+  alerts: [], cases: [], tab: "alerts", q: "", type: "all",
+  selectedAlert: null, currentCase: null, caseData: null,
+  report: null,          // last POSTed report, scoped to its own case_id
+  mode: null,            // {case_id, ablated} of the last fresh investigation
+  busy: false, live: false, booted: false, tick: 0, pollT: null,
+  firstSeen: new Map(),  // alert id → when it first appeared after boot (drives NEW + slide-in)
+  animated: new Set(),
+};
 
 /* ---------- helpers ---------- */
 async function api(path, opts) {
@@ -45,81 +26,47 @@ function toast(msg, isErr) {
   t.textContent = msg;
   t.className = isErr ? "show err" : "show";
   clearTimeout(t._x);
-  t._x = setTimeout(() => (t.className = ""), 4200);
+  t._x = setTimeout(() => (t.className = isErr ? "err" : ""), 4200);
 }
-const badge = (a) => `<span class="badge ${a}">${a}</span>`;
+const badge = (a, size) => a ? `<span class="badge ${a} ${size || ""}">${esc(a)}</span>` : "";
 const esc = (s) => String(s == null ? "" : s)
-  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-/* ---------- boot ---------- */
-async function boot() {
-  try {
-    const h = await api("/health");
-    $("model").textContent = `llm: ${h.llm_model} · graph: ${h.graph_name}`;
-    const hg = await api("/health/graph");
-    $("health").textContent = hg.status === "ok" ? "● graph online" : "○ graph down";
-    $("health").className = "health " + (hg.status === "ok" ? "ok" : "bad");
-  } catch (e) {
-    $("health").textContent = "○ api unreachable";
-    $("health").className = "health bad";
-  }
-  await refreshAlerts();
-  setInterval(refreshAlerts, 10000);
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const fmtDate = (iso) => {
+  const s = String(iso);
+  const [d, t] = s.split("T");
+  return d + (t ? " · " + t.slice(0, 5) : "");
+};
+function relTime(iso) {
+  const t = Date.parse(iso);
+  if (isNaN(t)) return fmtDate(iso);
+  const s = (Date.now() - t) / 1000;
+  if (s < 0) return fmtDate(iso);
+  if (s < 45) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  if (s < 86400 * 7) return `${Math.round(s / 86400)} d ago`;
+  return String(iso).split("T")[0];
 }
-
-/* ---------- alerts ---------- */
-async function refreshAlerts() {
-  try {
-    const data = await api("/monitor/alerts");
-    $("alerts").innerHTML = data.alerts.map((a) => {
-      const hist = /^AL-H/.test(a.id) ? "hist" : "";
-      const sel = selectedAlert === a.id ? "sel" : "";
-      return `<div class="alert ${sel}" data-id="${esc(a.id)}" title="${esc(a.id)} · ${esc(a.type)}">
-        <div class="a-plain"><b>${esc(TYPE_PLAIN[a.type] || a.type)}</b></div>
-        <div class="a-meta">received by ${esc(a.target)} · ${esc(fmtDate(a.created_at))}</div>
-      </div>`;
-    }).join("");
-    $("alerts").querySelectorAll(".alert").forEach((el) =>
-      el.addEventListener("click", () => selectAlert(el)));
-    $("investigate").disabled = !selectedAlert || busy;
-  } catch (e) {
-    toast(`alerts: ${e.message}`, true);
-  }
-}
-function selectAlert(el) {
-  document.querySelectorAll(".alert").forEach((x) => x.classList.remove("sel"));
-  el.classList.add("sel");
-  selectedAlert = el.dataset.id;
-  $("investigate").disabled = busy;
-}
-
-/* ---------- investigate (the ONLY LLM call on this screen) ---------- */
-let busy = false;
-async function investigate() {
-  if (!selectedAlert || busy) return;
-  busy = true;
-  $("investigate").disabled = true;
-  const ablated = $("ablated").checked;
-  $("inv-status").textContent = "LLM investigating — reading context, asking the graph, judging precedents… (~30-60s)";
-  try {
-    const res = await api("/cases/investigate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ alert_id: selectedAlert, ablated }),
-    });
-    currentCase = res.case_id;
-    $("case-id").textContent = `case ${res.case_id} · ${res.dec_id} · ${ablated ? "WITHOUT memory" : "with memory"}`;
-    $("case-id").className = "muted";
-    renderCase(await api(`/cases/${res.case_id}`), res);
-    toast(`decision recorded: ${res.action} (confidence ${res.confidence})`);
-  } catch (e) {
-    toast(`investigate: ${e.message}`, true);
-  } finally {
-    busy = false;
-    $("investigate").disabled = !selectedAlert;
-    $("override-btn").disabled = !currentCase;
-    $("inv-status").textContent = "";
-    wireButtons();
-  }
+const initials = (name) => {
+  if (!name || name === "merchant") return "BIZ";
+  return name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+};
+const trunc = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+const nf = (n) => Number(n || 0).toLocaleString("en-IN");
+/* numbered mono eyebrow: 01 —— TITLE */
+const h3 = (no, title, note) =>
+  `<h3><span class="no">${String(no).padStart(2, "0")}</span><span class="ln"></span>${title}${note ? `<span class="h-note">${note}</span>` : ""}</h3>`;
+const lead = (k, v, cls, title) =>
+  `<div class="lead ${cls && cls.row || ""}"${title ? ` data-sig="${esc(title)}"` : ""}><span class="lk">${k}</span><span class="ld"></span><span class="lv ${cls && cls.v || ""}">${v}</span></div>`;
+function countUp(el, to, ms) {
+  if (REDUCED || !el) { if (el) el.textContent = nf(to); return; }
+  const t0 = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / ms);
+    el.textContent = nf(Math.round(to * (1 - Math.pow(1 - k, 3))));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 /* ---------- plain-English layer (the desk speaks human; codes live in hover-tips) ---------- */
@@ -139,6 +86,7 @@ const TYPE_PLAIN = {
   sub_threshold: "Payments hiding under the reporting line",
   velocity: "Money moving out unusually fast",
 };
+const TYPE_SHORT = { fan_in: "Many payers", sub_threshold: "Under the line", velocity: "Fast money" };
 const TOOL_PLAIN = {
   get_case_context: "read the case file",
   trace_money_path: "followed the money route",
@@ -151,7 +99,10 @@ const ACTION_PLAIN = {
   monitor: "Kept under watch, no action yet",
   clear: "Marked legitimate",
 };
+const ACTION_COLOR = { freeze: "var(--bad)", escalate: "var(--warn)", monitor: "var(--accent)", clear: "var(--good)" };
 const VERDICT_PLAIN = { fraud: "looks like fraud", legit: "looks legitimate", unclear: "not sure — needs a human" };
+const scopeName = (s) =>
+  (s.holder && s.holder !== "merchant") ? s.holder : "Registered business";
 
 function inShort(c) {
   /* a deterministic, human summary of the case + decision (no jargon) */
@@ -186,108 +137,517 @@ function inShort(c) {
   return `${act}. Why: ${parts.join(" · ") || "the account's own history"}. ${mem}`;
 }
 
-/* ---------- render case detail ---------- */
-const fmtDate = (iso) => {
-  const s = String(iso);
-  const [d, t] = s.split("T");
-  return d + (t ? " · " + t.slice(0, 5) : "");
-};
-const scopeName = (s) =>
-  (s.holder && s.holder !== "merchant") ? s.holder : "Registered business";
+/* ---------- boot: dot-matrix signal field while the desk checks its own health ---------- */
+const bootFx = (() => {
+  const cv = $("boot-canvas");
+  const ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height, G = 6;
+  const off = document.createElement("canvas");
+  off.width = W; off.height = H;
+  const o = off.getContext("2d");
+  o.fillStyle = "#fff";
+  o.font = "700 210px Georgia, serif";
+  o.textAlign = "center"; o.textBaseline = "middle";
+  o.fillText("Ω", W / 2, H / 2 + 12);
+  const px = o.getImageData(0, 0, W, H).data;
+  const dots = [];
+  for (let y = G / 2; y < H; y += G) for (let x = G / 2; x < W; x += G) {
+    if (px[(Math.floor(y) * W + Math.floor(x)) * 4 + 3] > 120) dots.push({ x, y, at: Math.random() });
+  }
+  let pct = 0, target = 0, raf = 0;
+  const draw = () => {
+    pct += (target - pct) * 0.08;
+    ctx.clearRect(0, 0, W, H);
+    const k = pct / 100;
+    for (const d of dots) {
+      const on = d.at < k;
+      const flick = on ? 0.55 + 0.45 * Math.sin(performance.now() / 260 + d.x * 0.3 + d.y * 0.2) : 0.08;
+      ctx.fillStyle = on && d.at > k - 0.06 ? `rgba(71,159,250,${flick})` : `rgba(243,245,247,${flick})`;
+      ctx.fillRect(d.x - 1, d.y - 1, 2, 2);
+    }
+    $("boot-pct").textContent = Math.round(pct);
+    raf = requestAnimationFrame(draw);
+  };
+  draw();
+  return {
+    to(p, msg) { target = p; if (msg) $("boot-msg").textContent = msg; },
+    done() {
+      target = 100;
+      setTimeout(() => { $("boot").classList.add("done"); setTimeout(() => cancelAnimationFrame(raf), 700); },
+        REDUCED ? 0 : 450);
+    },
+  };
+})();
 
+async function boot() {
+  const t0 = performance.now();
+  bootFx.to(25, "Reaching the desk API");
+  try {
+    const h = await api("/health");
+    $("model").textContent = `llm ${h.llm_model} · graph ${h.graph_name}`;
+    bootFx.to(55, "Opening the graph");
+    const hg = await api("/health/graph");
+    const ok = hg.status === "ok";
+    $("health").innerHTML = `<span class="dot"></span>${ok ? "graph online" : "graph down"}`;
+    $("health").className = "health " + (ok ? "ok" : "bad");
+  } catch (e) {
+    $("health").innerHTML = '<span class="dot"></span>api unreachable';
+    $("health").className = "health bad";
+  }
+  try { setLive((await api("/sim/status")).running); } catch (e) { /* sim router optional */ }
+  bootFx.to(80, "Loading the alert queue");
+  await Promise.all([refreshAlerts(), refreshCases()]);
+  S.booted = true;
+  const wait = Math.max(0, 1100 - (performance.now() - t0));
+  setTimeout(() => bootFx.done(), REDUCED ? 0 : wait);
+  schedule();
+}
+function schedule() {
+  clearTimeout(S.pollT);
+  S.pollT = setTimeout(async () => {
+    S.tick++;
+    await refreshAlerts();
+    if (S.tick % 3 === 0) await refreshCases();
+    schedule();
+  }, S.live ? 3000 : 10000);
+}
+
+/* ---------- queue: alerts + past cases ---------- */
+async function refreshAlerts() {
+  try {
+    const data = await api("/monitor/alerts");
+    const now = Date.now();
+    data.alerts.forEach((a) => { if (!S.firstSeen.has(a.id)) S.firstSeen.set(a.id, S.booted ? now : 0); });
+    S.alerts = data.alerts;
+    renderQueue();
+    renderTicker();
+  } catch (e) {
+    toast(`alerts: ${e.message}`, true);
+  }
+}
+async function refreshCases() {
+  try {
+    S.cases = (await api("/cases")).cases;
+    renderQueue();
+  } catch (e) { /* the alert queue still works without the case index */ }
+}
+const caseForAlert = (id) => S.cases.find((c) => c.alert_id === id);
+const isNew = (id) => { const t = S.firstSeen.get(id); return t && Date.now() - t < 90000; };
+
+function renderQueue() {
+  const isA = S.tab === "alerts";
+  const src = isA ? S.alerts : S.cases;
+  const typeOf = (x) => (isA ? x.type : x.alert_type) || "other";
+  $("alert-count").textContent = S.alerts.length;
+  $("case-count").textContent = S.cases.length;
+  $("h-al").textContent = String(S.alerts.length).padStart(6, "0");
+  $("h-cs").textContent = String(S.cases.length).padStart(6, "0");
+
+  const counts = {};
+  src.forEach((x) => { counts[typeOf(x)] = (counts[typeOf(x)] || 0) + 1; });
+  if (S.type !== "all" && !counts[S.type]) S.type = "all";
+  $("type-chips").innerHTML =
+    `<button class="chip ${S.type === "all" ? "on" : ""}" data-type="all">All<span class="n">${src.length}</span></button>` +
+    Object.keys(counts).map((t) =>
+      `<button class="chip ${S.type === t ? "on" : ""}" data-type="${esc(t)}"><span class="sw t-${esc(t)}" style="background:var(--stripe)"></span>${esc(TYPE_SHORT[t] || t)}<span class="n">${counts[t]}</span></button>`).join("");
+
+  const q = S.q.trim().toLowerCase();
+  const hay = (x) => (isA
+    ? [x.id, x.target, x.type, TYPE_PLAIN[x.type]]
+    : [x.case_id, x.alert_id, x.target, x.alert_type, TYPE_PLAIN[x.alert_type], x.last_action]).join(" ").toLowerCase();
+  const rows = src.filter((x) => (S.type === "all" || typeOf(x) === S.type) && (!q || hay(x).includes(q)));
+
+  const box = isA ? $("alerts") : $("cases");
+  const focused = document.activeElement && document.activeElement.closest && document.activeElement.closest(".item");
+  const focusId = focused && box.contains(focused) ? focused.dataset.id : null;
+
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty-list">${src.length ? "Nothing matches this filter." : (isA ? "No alerts yet. Start the live stream to make some." : "No cases yet.")}</div>`;
+  } else if (isA) {
+    box.innerHTML = rows.map((a) => {
+      const k = caseForAlert(a.id);
+      const fresh = isNew(a.id) && !S.animated.has(a.id);
+      if (fresh) S.animated.add(a.id);
+      return `<button class="item t-${esc(a.type)} ${S.selectedAlert === a.id ? "sel" : ""} ${fresh ? "fresh" : ""}"
+          data-id="${esc(a.id)}" role="option" aria-selected="${S.selectedAlert === a.id}" data-sig="${esc(a.id)} · ${esc(a.type)} · ${esc(a.target)}${k ? " · decided " + esc(k.last_action) : ""}">
+        <div class="i-top"><span class="i-title">${esc(TYPE_PLAIN[a.type] || a.type)}</span>
+          ${isNew(a.id) ? '<span class="new">NEW</span>' : ""}${k ? badge(k.last_action, "sm") : ""}</div>
+        <div class="i-meta"><span class="acct">${esc(a.target)}</span><span>${esc(relTime(a.created_at))}</span><span>${esc(a.id)}</span></div>
+      </button>`;
+    }).join("");
+  } else {
+    box.innerHTML = rows.map((c) =>
+      `<button class="item t-${esc(c.alert_type)} ${S.currentCase === c.case_id ? "sel" : ""}" data-id="${esc(c.case_id)}" role="option" data-sig="${esc(c.case_id)} · ${esc(c.alert_id || "no alert")} · ${esc(c.last_action || "no decision")}">
+        <div class="i-top"><span class="i-title mono">${esc(c.case_id)}</span>${badge(c.last_action, "sm")}</div>
+        <div class="i-meta"><span class="acct">${esc(c.target || "—")}</span><span>${esc(TYPE_SHORT[c.alert_type] || c.alert_type || "")}</span><span>${esc(relTime(c.created_at))}</span><span>${esc(c.status)}</span></div>
+      </button>`).join("");
+  }
+  if (focusId) {
+    const el = box.querySelector(`.item[data-id="${CSS.escape(focusId)}"]`);
+    if (el) el.focus({ preventScroll: true });
+  }
+  updateSelected();
+}
+
+function renderTicker() {
+  const tk = $("ticker");
+  if (!S.live) { tk.classList.add("hidden"); return; }
+  tk.classList.remove("hidden");
+  const items = S.alerts.slice(0, 12).map((a) =>
+    `<span class="ticker-item"><span class="tk-dot"></span><b>${esc(TYPE_PLAIN[a.type] || a.type)}</b> ${esc(a.target)} · ${esc(relTime(a.created_at))}</span>`).join("");
+  const track = $("ticker-track");
+  if (track.dataset.sig !== items) { track.innerHTML = items; track.dataset.sig = items; }
+}
+
+function setTab(tab) {
+  S.tab = tab; S.type = "all";
+  document.querySelectorAll(".tab").forEach((t) => {
+    const on = t.dataset.tab === tab;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on);
+  });
+  $("alerts").classList.toggle("hidden", tab !== "alerts");
+  $("cases").classList.toggle("hidden", tab !== "cases");
+  $("queue-hint").textContent = tab === "alerts"
+    ? "Suspicious patterns the automatic monitor caught. Pick one, then investigate it."
+    : "Every case the desk has opened, newest first. Open one to read its full record.";
+  renderQueue();
+}
+
+function selectAlert(id) {
+  S.selectedAlert = id;
+  document.querySelectorAll("#alerts .item").forEach((x) => {
+    const on = x.dataset.id === id;
+    x.classList.toggle("sel", on);
+    x.setAttribute("aria-selected", on);
+  });
+  updateSelected();
+}
+function updateSelected() {
+  $("investigate").disabled = !S.selectedAlert || S.busy;
+  const line = $("selected-line");
+  const a = S.alerts.find((x) => x.id === S.selectedAlert);
+  if (!a) { line.classList.add("hidden"); return; }
+  const k = caseForAlert(a.id);
+  line.classList.remove("hidden");
+  line.innerHTML = `<span class="tagm">selected</span> <b>${esc(TYPE_PLAIN[a.type] || a.type)}</b>
+    on <span class="mono">${esc(a.target)}</span> · <span class="mono">${esc(a.id)}</span>
+    ${k ? `· already decided ${badge(k.last_action, "sm")} <button class="link" data-open="${esc(k.case_id)}">open ${esc(k.case_id)}</button>` : ""}`;
+}
+
+async function openCase(id) {
+  $("case-body").classList.add("loading");
+  try {
+    const c = await api(`/cases/${encodeURIComponent(id)}`);
+    renderCase(c);
+    $("case-body").scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "nearest" });
+  } catch (e) {
+    toast(`case: ${e.message}`, true);
+  } finally {
+    $("case-body").classList.remove("loading");
+  }
+}
+
+/* ---------- investigate (the ONLY LLM call on this screen) ---------- */
+function startProgress(alertId, ablated) {
+  const steps = [
+    { t: 0, label: TOOL_PLAIN.get_case_context },
+    { t: 5, label: TOOL_PLAIN.trace_money_path },
+    { t: 13, label: TOOL_PLAIN.find_shared_entities },
+    { t: 22, label: TOOL_PLAIN.find_precedents, skip: ablated },
+    { t: 30, label: "weighing it all and deciding" },
+  ];
+  const el = $("inv-status");
+  el.classList.remove("hidden");
+  $("case-body").classList.add("loading");
+  const t0 = performance.now();
+  const paint = (final) => {
+    const s = (performance.now() - t0) / 1000;
+    let now = 0;
+    steps.forEach((x, i) => { if (s >= x.t) now = i; });
+    const rows = steps.map((x, i) => {
+      if (x.skip) return lead(x.label, "skipped · memory off", { row: "dim", v: "skip" });
+      if (final || i < now) return lead(x.label, "done", { v: "ok" });
+      if (i === now) return lead(x.label, "running…", { v: "run" });
+      return lead(x.label, "queued", { row: "dim", v: "wait" });
+    }).join("");
+    const pct = final ? 100 : Math.min(94, 100 * (1 - Math.exp(-s / 24)));
+    el.innerHTML = `
+      <div class="term-bar"><i></i><i></i><i></i><span>investigator · live trace</span></div>
+      <div class="p-head"><div class="spinner"></div>
+        <div class="term-cmd"><span class="pr">$</span> investigate ${esc(alertId)} ${ablated ? "--without-memory" : "--with-memory"}<span class="caret"></span></div>
+        <span class="p-time">${s.toFixed(0)}s · usually 30–60s</span></div>
+      <div class="leaders">${rows}</div>
+      <div class="p-bar"><div style="width:${pct}%"></div></div>
+      <div class="p-note">This is the usual order of steps. The exact record of what the AI asked the graph appears below when it finishes.</div>`;
+  };
+  paint(false);
+  const iv = setInterval(() => paint(false), 500);
+  return (ok) => {
+    clearInterval(iv);
+    $("case-body").classList.remove("loading");
+    if (ok) { paint(true); setTimeout(() => el.classList.add("hidden"), 500); }
+    else el.classList.add("hidden");
+  };
+}
+
+async function investigate() {
+  if (!S.selectedAlert || S.busy) return;
+  S.busy = true;
+  updateSelected();
+  const alertId = S.selectedAlert;
+  const ablated = $("ablated").checked;
+  const stop = startProgress(alertId, ablated);
+  try {
+    const res = await api("/cases/investigate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ alert_id: alertId, ablated }),
+    });
+    const c = await api(`/cases/${res.case_id}`);
+    stop(true);
+    S.busy = false;
+    S.mode = { case_id: res.case_id, ablated };
+    renderCase(c, res);
+    toast(`decision recorded: ${res.action} (confidence ${res.confidence})`);
+    refreshCases();
+  } catch (e) {
+    stop(false);
+    toast(`investigate: ${e.message}`, true);
+  } finally {
+    S.busy = false;
+    updateSelected();
+  }
+}
+
+/* ---------- the shape of the money: drawn only from the case's own accounts + signals ---------- */
+function flowMap(c) {
+  if (!c.scope.length) return "";
+  const targetId = (c.alert[0] && c.alert[0].target) || c.scope[0].account;
+  const recv = c.scope.find((s) => s.account === targetId) || { account: targetId, holder: null, kyc: null };
+  const payers = c.scope.filter((s) => s.account !== recv.account);
+  const frozen = new Set(c.freeze_orders.map((f) => f.account));
+  const has = (code) => c.signals.find((s) => s.code === code);
+  const fan = has("FAN_IN");
+  const W = 660, H = 290, RX = 390, RY = 140;
+  const shown = payers.slice(0, 7);
+  const extra = Math.max(0, (fan ? fan.value : payers.length) - shown.length);
+  const nodes = shown.map((s) => ({ s })).concat(extra ? [{ more: extra }] : []);
+  const n = nodes.length;
+  const anyFrozen = frozen.size > 0;
+
+  let edges = "", parts = "", dots = "";
+  nodes.forEach((nd, i) => {
+    const t = n === 1 ? 0.5 : i / (n - 1);
+    nd.x = 190 + Math.sin(t * Math.PI) * 36;
+    nd.y = 30 + t * (H - 60);
+    const path = `M${nd.x + 16},${nd.y} C${nd.x + 110},${nd.y} ${RX - 120},${RY} ${RX - 34},${RY}`;
+    edges += `<path class="edge in draw" data-k="${i}" style="--i:${i}" d="${path}"/>`;
+    if (!REDUCED) dots += `<circle class="pt" r="2.2"><animateMotion dur="${(2.2 + (i % 3) * 0.45).toFixed(2)}s" begin="${(i * 0.37).toFixed(2)}s" repeatCount="indefinite" path="${path}"/></circle>`;
+  });
+  nodes.forEach((nd, i) => {
+    if (nd.more) {
+      parts += `<g class="node more" data-k="${i}" style="--i:${i}" data-sig="+${nd.more} payers · measured by FAN_IN · not drawn individually"><circle class="body" cx="${nd.x}" cy="${nd.y}" r="15"/>
+        <text class="ini" x="${nd.x}" y="${nd.y + 3.5}" text-anchor="middle">+${nd.more}</text>
+        <text x="${nd.x - 24}" y="${nd.y + 4}" text-anchor="end">more payers</text></g>`;
+      return;
+    }
+    const s = nd.s, fz = frozen.has(s.account);
+    parts += `<g class="node ${fz ? "frozen" : ""}" data-k="${i}" style="--i:${i}" data-sig="${esc(s.account)} · ${esc(scopeName(s))} · payer${fz ? " · BLOCKED" : ""}">
+      ${fz ? `<circle class="halo" cx="${nd.x}" cy="${nd.y}" r="20"/>` : ""}
+      <circle class="body" cx="${nd.x}" cy="${nd.y}" r="15"/>
+      <text class="ini" x="${nd.x}" y="${nd.y + 3.5}" text-anchor="middle">${fz ? "🔒" : esc(initials(s.holder))}</text>
+      ${s.kyc === true || s.kyc === false ? `<circle class="kdot ${s.kyc ? "y" : "n"}" cx="${nd.x + 11}" cy="${nd.y - 11}" r="3.5"/>` : ""}
+      <text x="${nd.x - 24}" y="${nd.y}" text-anchor="end">${esc(trunc(scopeName(s), 20))}</text>
+      <text class="lbl-sub" x="${nd.x - 24}" y="${nd.y + 12}" text-anchor="end">${esc(s.account)}</text></g>`;
+  });
+
+  // onward money + shared device: only when the fixed rules measured them
+  if (has("PASS_THROUGH")) {
+    const p = `M${RX + 34},${RY} C${RX + 90},${RY} ${RX + 110},${RY - 56} ${RX + 170},${RY - 56}`;
+    edges += `<path class="edge out draw" style="--i:${n}" d="${p}"/>`;
+    if (!REDUCED) dots += `<circle class="pt" r="2.2"><animateMotion dur="1.6s" repeatCount="indefinite" path="${p}"/></circle>`;
+    parts += `<g class="node ghost" style="--i:${n + 1}" data-sig="PASS_THROUGH · money arrived and was sent straight out">
+      <circle class="body" cx="${RX + 186}" cy="${RY - 56}" r="15"/><text class="ini" x="${RX + 186}" y="${RY - 52}" text-anchor="middle">→</text>
+      <text x="${RX + 186}" y="${RY - 80}" text-anchor="middle">sent onward</text></g>`;
+  }
+  const ring = has("RING_MEMBER"), dev = has("SHARED_DEVICE") || ring;
+  if (dev) {
+    const dx = RX + 176, dy = RY + 74;
+    edges += `<path class="edge dev ${ring ? "ring" : ""} draw" style="--i:${n + 1}" d="M${RX + 26},${RY + 22} Q${RX + 70},${dy} ${dx - 18},${dy}"/>`;
+    parts += `<g class="node device ${ring ? "ring" : ""}" style="--i:${n + 2}" data-sig="${ring ? "RING_MEMBER · device tied to confirmed fraud" : "SHARED_DEVICE · one device across accounts"}">
+      <rect x="${dx - 15}" y="${dy - 15}" width="30" height="30" rx="7" transform="rotate(45 ${dx} ${dy})"/>
+      <text class="ini" x="${dx}" y="${dy + 4}" text-anchor="middle">📱</text>
+      <text x="${dx}" y="${dy + 34}" text-anchor="middle">${ring ? "device tied to known fraud" : "shared device"}</text></g>`;
+  }
+  const rf = frozen.has(recv.account);
+  parts += `<g class="node recv ${rf ? "frozen" : ""}" style="--i:${n + 3}" data-sig="${esc(recv.account)} · ${esc(scopeName(recv))} · receiver${rf ? " · BLOCKED" : ""}">
+    ${rf ? `<circle class="halo" cx="${RX}" cy="${RY}" r="42"/>` : ""}
+    <circle class="body" cx="${RX}" cy="${RY}" r="32"/>
+    <text class="ini" x="${RX}" y="${RY + 4.5}" text-anchor="middle">${rf ? "🔒" : esc(initials(recv.holder))}</text>
+    ${recv.kyc === true || recv.kyc === false ? `<circle class="kdot ${recv.kyc ? "y" : "n"}" cx="${RX + 23}" cy="${RY - 23}" r="5"/>` : ""}
+    <text x="${RX}" y="${RY + 50}" text-anchor="middle" font-weight="600">${esc(trunc(scopeName(recv), 26))}</text>
+    <text class="lbl-sub" x="${RX}" y="${RY + 63}" text-anchor="middle">${esc(recv.account)} · receiver</text>
+    ${has("BUSINESS_KYC") ? `<text class="tag-biz" x="${RX}" y="${RY + 77}" text-anchor="middle">verified business</text>` : ""}</g>`;
+  const countLbl = fan ? `<text class="lbl-count" x="${RX - 60}" y="${RY - 14}" text-anchor="end">${esc(fan.value)} payers at once</text>` : "";
+
+  return `<div class="card flow" style="--i:2">${h3(3, "The shape of the money", "drawn from this case's accounts and measured signals")}
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Money flow: ${n} payer node(s) into ${esc(scopeName(recv))}">
+      <defs><linearGradient id="gIn" x1="0" x2="1"><stop offset="0" stop-color="${anyFrozen ? "#f2555a" : "#479ffa"}" stop-opacity=".15"/><stop offset="1" stop-color="${anyFrozen ? "#f2555a" : "#479ffa"}" stop-opacity=".85"/></linearGradient></defs>
+      ${edges}${dots}${countLbl}${parts}
+    </svg>
+    <div class="legend"><span><span class="ln"></span>money in</span>${has("PASS_THROUGH") ? '<span><span class="ln d"></span>sent onward</span>' : ""}
+      <span><i style="background:var(--good)"></i>identity verified</span><span><i style="background:var(--bad)"></i>not verified</span>
+      ${anyFrozen ? "<span>🔒 blocked</span>" : ""}</div></div>`;
+}
+
+/* ---------- render case detail ---------- */
 function renderCase(c, runRes) {
-  /* signal chips = plain sentences; the raw code survives only as a hover-tip */
+  S.caseData = c;
+  S.currentCase = c.case_id;
+  const d = c.decisions[c.decisions.length - 1] || null;
+  const ad = [...c.decisions].reverse().find((x) => x.decided_by === "agent") || d;
+  let no = 0;
+
+  /* 01 — the verdict */
+  const short = inShort(c);
+  const conf = d ? Math.round((d.confidence || 0) * 100) : 0;
+  const headline = d ? `<div class="card headline a-${esc(d.action)}" style="--i:0">
+      <div class="hl-row">
+        <div class="ring" data-sig="${esc(d.decision_id)} · confidence ${(d.confidence || 0).toFixed(2)}" data-p="${conf}" style="--c:${ACTION_COLOR[d.action] || "var(--accent)"}"><span><b class="cnt" data-to="${conf}">0</b>%<small>sure</small></span></div>
+        <div class="hl-main">
+          <div class="hl-kicker">${badge(d.action, "lg")}<span class="tagm">${d.decided_by === "agent" ? "AI investigator" : "human analyst"}</span><span class="muted">${esc(fmtDate(d.ts))}</span></div>
+          <div class="hl-act">${esc(ACTION_PLAIN[d.action] || d.action)}</div>
+          <div class="hl-sub">${d.decided_by === "agent" ? "The AI's opinion" : "The analyst's opinion"}: ${esc(VERDICT_PLAIN[d.verdict] || d.verdict)}</div>
+        </div>
+      </div>
+      ${short ? `${h3(++no, "In short")}<div class="shortt">${esc(short)}</div>` : ""}
+    </div>` : `<div class="card" style="--i:0">${h3(++no, "No decision yet")}<div class="muted">This case has no recorded decision. Investigate its alert to get one.</div></div>`;
+
+  /* 02 — the AI's own words */
+  const aiVoice = ad
+    ? `<div class="card ai-voice" style="--i:1">${h3(++no, "What the AI investigator says")}
+         <div class="aitt" id="ai-text">“${esc(ad.rationale || "—")}”</div>
+         <div class="hint">This is the agent's own written reasoning, exactly as stored in the decision (replayable in the graph).</div></div>`
+    : "";
+  const memo = runRes ? ablateNote(runRes.ablated, d) : "";
+
+  /* 03 — the money map */
+  const flow = flowMap(c);
+  if (flow) no = 3;
+
+  /* who + pattern */
+  const scope = c.scope.map((s) =>
+    `<span class="pill neutral" data-sig="${esc(s.account)} · kyc ${s.kyc === true ? "verified" : s.kyc === false ? "NOT verified" : "unknown"}${s.opened_at ? " · opened " + esc(s.opened_at) : ""}">
+       <b>${esc(scopeName(s))}</b>
+       <span class="psub">${s.kyc === true ? '<span class="kyc-y">●</span> identity verified' : s.kyc === false ? '<span class="kyc-n">●</span> identity NOT verified' : "&nbsp;"}</span></span>`).join(" ");
   const sig = c.signals.length
     ? c.signals.map((s) =>
-        `<span class="pill ${s.polarity}" title="internal code: ${esc(s.code)}">
+        `<span class="pill ${s.polarity}" data-sig="${esc(s.code)} · ${esc(s.polarity)} · value ${esc(s.value)}">
            <b>${esc(SIG_PLAIN[s.code] || s.code)}</b>
-           <span class="psub">${s.polarity === "aggravating" ? "looks suspicious" : "looks innocent"}
+           <span class="psub">${s.polarity === "aggravating" ? "▲ looks suspicious" : "▼ looks innocent"}
              ${s.value > 1 ? "· seen " + esc(s.value) + "×" : ""}</span></span>`).join("")
     : '<span class="muted">nothing unusual measured on the accounts themselves</span>';
 
-  const d = c.decisions[c.decisions.length - 1] || null;
-  const acts = c.decisions.map((x) => {
-    const cites = x.cites.map((ct) =>
-      `<div class="prec"><div class="head" title="stored as decision ${esc(ct.decision_id)}">
-        <span class="applies ${ct.applies ? "y" : "n"}">${ct.applies ? "✓ this past case applies here" : "✗ the agent decided this past case does NOT apply here"}</span>
-        ${ct.distinguishing && ct.distinguishing.length ? `<span class="dist">different because: ${esc(ct.distinguishing.map((s) => SIG_PLAIN[s] || s).join("; "))}</span>` : (ct.applies ? "" : `<span class="dist">(no reason recorded)</span>`)}</div></div>`).join("");
-    const ov = x.overridden_by.map((o) =>
-      `<div class="dist">⚠ a human corrected this one — “${esc(o.reason)}”</div>`).join("");
-    const rc = (x.action === "clear" && x.receipt)
-      ? `<div class="dist">🧾 cleared with a replayable receipt — every dangerous connection checked, none exists.</div>`
-      : "";
-    return `<div class="card">
-      <h3>Decision · ${esc(fmtDate(x.ts))} · by ${x.decided_by === "agent" ? "the AI investigator" : "a human analyst"}</h3>
-      ${badge(x.action)} <span class="muted">${esc(ACTION_PLAIN[x.action] || x.action)} · AI's opinion: ${esc(VERDICT_PLAIN[x.verdict] || x.verdict)} · ${Math.round((x.confidence || 0) * 100)}% sure</span>
-      <div class="bar"><div style="width:${Math.round((x.confidence || 0) * 100)}%"></div></div>
-      ${rc}${cites}${ov}
-    </div>`;
-  }).join("");
-
-  const queue = c.assigned_to
-    ? `<div class="muted">Queued to <b>${esc(c.assigned_to.analyst)}</b> — ${esc(c.assigned_to.desk_reason || "assigned by rule")}</div>`
-    : "";
-
+  /* the decision trail: AI → human corrections, oldest first */
   const holder = (id) => {
     const s = c.scope.find((x) => x.account === id);
     return s ? scopeName(s) : id;
   };
-  const evRows = c.evidence.map((e) =>
-    `<li title="${esc(e.tool)} · ${esc(e.query_id)}">${esc(TOOL_PLAIN[e.tool] || e.tool)}
-     <span class="q">(re-runnable · as of ${esc(fmtDate(e.as_of))})</span></li>`).join("");
-  const evReceipt = (d && d.receipt && d.action === "clear")
-    ? `<li>🧾 the clearance receipt — the same checks can be re-run any time
-         <span class="q">(as of ${esc(fmtDate(d.receipt.as_of))})</span></li>`
-    : "";
-  const ev = (evRows || evReceipt)
-    ? `<ol class="evidence">${evRows}${evReceipt}</ol>`
-    : '<span class="muted">no links stored yet</span>';
-
+  const trail = c.decisions.map((x) => {
+    const xc = Math.round((x.confidence || 0) * 100);
+    const cites = x.cites.map((ct) =>
+      `<div class="prec" data-sig="cites ${esc(ct.decision_id)} · ${ct.applies ? "applies" : "does not apply"}"><div class="head">
+        <span class="applies ${ct.applies ? "y" : "n"}">${ct.applies ? "✓ this past case applies here" : "✗ the agent decided this past case does NOT apply here"}</span>
+        ${ct.distinguishing && ct.distinguishing.length ? `<span class="dist">different because: ${esc(ct.distinguishing.map((s) => SIG_PLAIN[s] || s).join("; "))}</span>` : (ct.applies ? "" : `<span class="dist">(no reason recorded)</span>`)}</div></div>`).join("");
+    const ov = x.overridden_by.map((o) =>
+      `<div class="dist ov">⚠ a human corrected this one — “${esc(o.reason)}”</div>`).join("");
+    const rc = (x.action === "clear" && x.receipt)
+      ? `<div class="dist rc">🧾 cleared with a replayable receipt — every dangerous connection checked, none exists.</div>`
+      : "";
+    const human = x.decided_by !== "agent";
+    return `<div class="tl a-${esc(x.action)} ${human ? "human" : ""} ${x.overridden_by.length ? "overruled" : ""}" data-sig="${esc(x.decision_id)} · ${esc(x.action)} · ${xc}% sure${x.overridden_by.length ? " · overruled" : ""}" style="color:${ACTION_COLOR[x.action] || "var(--muted)"}">
+      <div class="tl-dot"></div>
+      <div class="tl-body" style="color:var(--text)">
+        <div class="d-top">${badge(x.action)}<span class="d-who ${human ? "human" : ""}">${human ? "a human analyst" : "the AI investigator"}</span><span class="muted">${esc(fmtDate(x.ts))}</span></div>
+        <div class="d-line">${esc(ACTION_PLAIN[x.action] || x.action)} · opinion: ${esc(VERDICT_PLAIN[x.verdict] || x.verdict)} · ${xc}% sure</div>
+        <div class="bar"><div data-w="${xc}"></div></div>
+        ${rc}${cites}${ov}
+      </div></div>`;
+  }).join("");
   const fr = c.freeze_orders.map((f) =>
-    `<div class="card"><h3>Blocked</h3>
-      <div><b>${esc(holder(f.account))}</b>'s account is blocked — money stopped
-      <span class="psub">${esc(fmtDate(f.ts))}</span></div></div>`).join("");
-
-  const scope = c.scope.map((s) =>
-    `<span class="pill neutral" title="${esc(s.account)}">
-       <b>${esc(scopeName(s))}</b>
-       <span class="psub">${s.kyc === true ? "identity verified" : s.kyc === false ? "identity NOT verified" : "&nbsp;"}</span></span>`).join(" ");
-
-  const short = inShort(c);
-  const aiVoice = d
-    ? `<div class="card ai-voice"><h3>What the AI investigator says</h3>
-         <div class="aitt">“${esc(d.rationale || "—")}”</div>
-         <div class="hint">This is the agent's own written reasoning — exactly as stored in the decision (replayable in the graph).</div></div>`
+    `<div class="frz"><span class="lock">🔒</span><div><b>${esc(holder(f.account))}</b>'s account is blocked — money stopped
+      <div class="muted">${esc(fmtDate(f.ts))} · order ${esc(f.order)}</div></div></div>`).join("");
+  const queue = c.assigned_to
+    ? `<div class="queue-note"><span class="av">${esc(String(c.assigned_to.analyst).replace(/^AN-/, "").slice(0, 2))}</span>
+        <div>Queued to <b>${esc(c.assigned_to.analyst)}</b><div class="muted">${esc(c.assigned_to.desk_reason || "assigned by rule")}</div></div></div>`
     : "";
-  const repCard = (c.report || currentReport)
-    ? `<div class="card rep"><h3>📄 Case report — written by the AI, sources checked</h3>
-         <div class="rept">${esc((currentReport && currentReport.report) || c.report.body)}</div>
-         <div class="hint">sources: <span class="q">${esc((currentReport && currentReport.sources || []).join(" · ") || "stored on the case")}</span></div>
-         <a class="dl" href="/cases/${esc(c.case_id)}/report.md" download>⬇ download the report</a></div>`
+
+  /* evidence + cost as dotted ledgers */
+  const evRows = c.evidence.map((e) =>
+    lead(esc(TOOL_PLAIN[e.tool] || e.tool || "case history"), `as of ${esc(fmtDate(e.as_of))}`, null, `${e.tool || ""} · ${e.query_id}`)).join("");
+  const evReceipt = (d && d.receipt && d.action === "clear")
+    ? lead("🧾 the clearance receipt", `as of ${esc(fmtDate(d.receipt.as_of))}`, { v: "ok" }) : "";
+  const ev = (evRows || evReceipt)
+    ? `<div class="leaders">${evRows}${evReceipt}</div><div class="hint">Each answer is stored with its query and can be re-run later.</div>`
+    : '<span class="muted">no links stored yet</span>';
+  const tok = c.tokens.in + c.tokens.out;
+
+  /* report */
+  const rep = S.report && S.report.case_id === c.case_id ? S.report : null;
+  const repBody = rep ? rep.report : (c.report && c.report.body);
+  const repCard = repBody
+    ? `<div class="card rep" style="--i:8">${h3(9, "📄 Case report — written by the AI, sources checked", c.report && c.report.model ? esc(c.report.model) : "")}
+         <div class="rept">${esc(repBody)}</div>
+         <div class="hint">sources: <span class="q">${esc((rep && rep.sources || []).join(" · ") || "stored on the case")}</span></div>
+         <a class="dl" href="/cases/${esc(c.case_id)}/report.md" download>⬇ Download the report</a></div>`
     : "";
+
   $("case-body").innerHTML = `
-    ${short ? `<div class="card headline"><h3>In short</h3><div class="shortt">${esc(short)}</div></div>` : ""}
-    ${aiVoice}
-    <div class="card"><h3>Who's involved</h3>
+    ${headline}${aiVoice}${memo}${flow}
+    <div class="card half" style="--i:3">${h3(4, "Who's involved")}
       <div class="pillbar">${scope || "—"}</div>
       <div class="hint">The account that received the money, plus the people paying it. Hover any chip for its exact id.</div></div>
-    <div class="card"><h3>What the pattern looks like (measured by fixed rules — no AI here)</h3><div class="pillbar">${sig}</div></div>
-    ${acts}${fr}${queue}
-    <div class="card"><h3>What the agent asked the graph (each answer re-runnable later)</h3>${ev}</div>
-    <div class="card"><h3>Cost</h3><div class="muted">${c.tokens.in + c.tokens.out} tokens of AI thinking — logged, auditable</div></div>
+    <div class="card half" style="--i:4">${h3(5, "What the pattern looks like", "fixed rules · no AI")}<div class="pillbar">${sig}</div></div>
+    <div class="card" style="--i:5">${h3(6, "Decision trail", `${c.decisions.length} decision${c.decisions.length === 1 ? "" : "s"}, oldest first`)}
+      <div class="trail">${trail || '<span class="muted">none yet</span>'}</div>${fr}${queue}</div>
+    <div class="card half" style="--i:6">${h3(7, "What the agent asked the graph")}${ev}</div>
+    <div class="card half" style="--i:7">${h3(8, "Cost")}
+      <div class="stat"><b class="cnt" data-to="${tok}">0</b><span>tokens of AI thinking</span></div>
+      <div class="leaders" style="margin-top:12px">${lead("tokens in", nf(c.tokens.in))}${lead("tokens out", nf(c.tokens.out))}${lead("AI runs on this case", nf(c.tokens.llm_runs))}</div>
+      <div class="hint">logged and auditable</div></div>
     ${repCard}
-    <div class="row btns"><button id="report-btn" class="ghost" ${busy ? "disabled" : ""}>📄 write the case report (one AI call)</button>
-    <button id="sim-live" class="ghost">▶ make alerts stream live</button></div>`;
+    <div class="row btns"><button id="report-btn" class="ghost" ${S.busy ? "disabled" : ""}>📄 ${repBody ? "Rewrite" : "Write"} the case report (one AI call)</button></div>`;
 
-  if (runRes) {
-    $("case-body").insertAdjacentHTML("beforeend", ablateNote(runRes.ablated, d));
-  }
-  wireButtons();   // every re-render (override refresh, report reload) re-binds the fresh buttons
-  if (c.case_id) {           // an open case on screen = the desk's buttons work for it
-    currentCase = c.case_id;
-    $("override-btn").disabled = false;
-    $("case-id").textContent = "case " + c.case_id;
-  }
+  /* motion: ring, bars, counters, the AI's words typed out on a fresh run */
+  requestAnimationFrame(() => {
+    document.querySelectorAll("#case-body .ring").forEach((r) => r.style.setProperty("--p", r.dataset.p));
+    document.querySelectorAll("#case-body .bar > div").forEach((b) => (b.style.width = b.dataset.w + "%"));
+    document.querySelectorAll("#case-body .cnt").forEach((el) => countUp(el, +el.dataset.to, 1100));
+  });
+  if (runRes && ad) typewrite($("ai-text"), `“${ad.rationale || "—"}”`);
+
+  $("report-btn").onclick = writeReport;
+  const mode = S.mode && S.mode.case_id === c.case_id
+    ? `<span class="mode ${S.mode.ablated ? "off" : "on"}">${S.mode.ablated ? "WITHOUT memory" : "with memory"}</span>` : "";
+  $("case-id").className = "case-id";
+  $("case-id").innerHTML = `case ${esc(c.case_id)} <span class="chip-s">${esc(c.status)}</span>${d ? ` <span class="muted mono">${esc(d.decision_id)}</span>` : ""} ${mode}`;
+  $("override-target").className = "ov-target on";
+  $("override-target").innerHTML = `<div>Correcting <span class="ov-id">${esc(c.case_id)}</span></div>
+    ${d ? `<div>Current decision ${badge(d.action, "sm")}</div><div class="muted">${esc(ACTION_PLAIN[d.action] || d.action)}</div>` : '<div class="muted">no decision to correct yet</div>'}`;
+  $("override-btn").disabled = false;
+  document.querySelectorAll("#cases .item").forEach((x) => x.classList.toggle("sel", x.dataset.id === c.case_id));
+}
+function typewrite(el, text) {
+  if (!el || REDUCED) return;
+  let i = 0;
+  const step = Math.max(2, Math.ceil(text.length / 110));
+  el.textContent = "";
+  el.classList.add("typing");
+  const iv = setInterval(() => {
+    i += step;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length) { clearInterval(iv); el.classList.remove("typing"); }
+  }, 16);
 }
 function ablateNote(ablated, d) {
   const note = ablated
@@ -295,56 +655,221 @@ function ablateNote(ablated, d) {
     : d && d.cites.length
       ? "This decision used the desk's memory — past cases and human corrections shaped it."
       : "";
-  return note ? `<div class="card"><h3>Memory check</h3><div class="muted">${note}</div></div>` : "";
+  return note ? `<div class="card memo ${ablated ? "off" : "on"}" style="--i:2"><h3><span class="no">◐</span><span class="ln"></span>Memory check</h3><div class="muted">${note}</div></div>` : "";
+}
+
+async function writeReport() {
+  if (!S.currentCase || S.busy) return;
+  S.busy = true;
+  const btn = $("report-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "✍ writing the report…"; }
+  toast("writing the case report — one AI call…");
+  try {
+    S.report = await api(`/cases/${S.currentCase}/report`, { method: "POST" });
+    S.report.case_id = S.report.case_id || S.currentCase;
+    S.busy = false;
+    renderCase(await api(`/cases/${S.currentCase}`));
+    toast("report ready — with every source named");
+  } catch (e) {
+    toast(`report: ${e.message}`, true);
+    if (btn) { btn.disabled = false; btn.textContent = "📄 Write the case report (one AI call)"; }
+  } finally { S.busy = false; updateSelected(); }
+}
+
+/* ---------- live stream ---------- */
+function setLive(on) {
+  S.live = !!on;
+  const b = $("sim-live");
+  b.dataset.on = on ? "1" : "0";
+  b.querySelector(".live-label").textContent = on ? "Live · stop stream" : "Start live stream";
+  document.body.classList.toggle("is-live", S.live);
+  renderTicker();
+}
+async function simToggle() {
+  const stopping = S.live;
+  try {
+    await api(stopping ? "/sim/stop" : "/sim/start?interval=2", { method: "POST" });
+    setLive(!stopping);
+    toast(stopping ? "live stream stopped" : "the world is live — new alerts arrive by themselves");
+    schedule();
+    if (!stopping) refreshAlerts();
+  } catch (e) { toast(`sim: ${e.message}`, true); }
 }
 
 /* ---------- override (the demo beat) ---------- */
+const overrideAction = () => (document.querySelector('input[name="action"]:checked') || {}).value || "clear";
 async function overrideSubmit(e) {
   e.preventDefault();
-  if (!currentCase) return;
+  if (!S.currentCase) return;
   const reason = $("reason").value.trim();
-  if (!reason) { toast("a reason is required — §10", true); return; }
+  if (!reason) { toast("a reason is required — §10", true); $("reason").focus(); return; }
+  const btn = $("override-btn");
+  btn.disabled = true;
   try {
-    const r = await api(`/cases/${currentCase}/override`, {
+    const r = await api(`/cases/${S.currentCase}/override`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ analyst_id: $("analyst").value, action: $("action").value, reason }),
+      body: JSON.stringify({ analyst_id: $("analyst").value, action: overrideAction(), reason }),
     });
-    $("override-note").textContent = `recorded as ${r.override_id} — it corrects ${r.overruled}; the next twin (C′) will cite this, and ${r.overruled} is never citable again.`;
+    $("override-note").className = "ov-note ok";
+    $("override-note").textContent = `Recorded as ${r.override_id}. It corrects ${r.overruled}: the next similar case will cite this lesson, and ${r.overruled} can never be cited again.`;
     $("reason").value = "";
     toast(`override recorded: ${r.override_id}`);
-    setTimeout(() => { if (currentCase) api(`/cases/${currentCase}`).then((c) => renderCase(c)); }, 60);
+    renderCase(await api(`/cases/${S.currentCase}`));
+    refreshCases();
   } catch (err) {
     toast(`override: ${err.message}`, true);
+  } finally { btn.disabled = !S.currentCase; }
+}
+
+/* ---------- benchmark modal ---------- */
+async function benchLoad() {
+  const body = $("bench-body");
+  try {
+    const r = await api("/benchmark/last");
+    const changed = new Set(r.decisions_changed || []);
+    const ran = r.cases.filter((c) => !c.miss);
+    const matched = ran.filter((c) => c.with_ok && c.without_ok).length;
+    const rows = r.cases.map((c) => {
+      if (c.miss) return `<tr><td class="mono">${esc(c.case)}</td><td colspan="5" class="muted">${esc(c.miss)}</td></tr>`;
+      const ch = changed.has(c.case);
+      return `<tr class="${ch ? "changed" : ""}">
+        <td class="mono"><b>${esc(c.case)}</b>${ch ? '<span class="chg">memory changed it</span>' : ""}</td>
+        <td>${badge(c.with.action, "sm")}<span class="conf">${(c.with.confidence ?? 0).toFixed(2)}</span></td>
+        <td>${badge(c.without.action, "sm")}<span class="conf">${(c.without.confidence ?? 0).toFixed(2)}</span></td>
+        <td class="mono">${esc((c.with.cited_all || []).join(", ")) || "—"}</td>
+        <td class="${c.with_ok && c.without_ok ? "ok" : "miss"}">${c.with_ok && c.without_ok ? "✓ as predicted" : "miss"}</td>
+        <td class="muted mono">${nf((c.with.tokens && c.with.tokens.in) || 0)} tok</td></tr>`;
+    }).join("");
+    body.innerHTML = `
+      <div class="metrics">
+        <div class="metric"><b class="cnt" data-to="${ran.length}">0</b><span>cases run both ways</span></div>
+        <div class="metric hi"><b class="cnt" data-to="${changed.size}">0</b><span>decisions changed by memory</span></div>
+        <div class="metric"><b><span class="cnt" data-to="${matched}">0</span><span class="muted" style="font-size:20px"> / ${ran.length}</span></b><span>matched the pre-registered outcome</span></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>case</th><th>with memory</th><th>without</th><th>cited</th><th>vs pre-registered</th><th>pacing</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <div class="hint">Outcomes were pre-registered before the run; every miss is reported (§12).</div>`;
+    body.querySelectorAll(".cnt").forEach((el) => countUp(el, +el.dataset.to, 900));
+  } catch (e) {
+    body.innerHTML = `<div class="empty-list">No benchmark report yet.<br>Run <span class="mono">scripts/c1_exit_test.py</span> once, then reload.<div class="hint">${esc(e.message)}</div></div>`;
   }
 }
 
-/* ---------- benchmark drawer ---------- */
-async function benchLoad() {
-  try {
-    const r = await api("/benchmark/last");
-    const rows = r.cases.map((c) => {
-      if (c.miss) return `<tr><td>${esc(c.case)}</td><td colspan="5" class="muted">${esc(c.miss)}</td></tr>`;
-      return `<tr>
-        <td><b>${esc(c.case)}</b></td>
-        <td>${esc(c.with.action)} (${(c.with.confidence ?? 0).toFixed(2)})</td>
-        <td>${esc(c.without.action)} (${(c.without.confidence ?? 0).toFixed(2)})</td>
-        <td>${esc((c.with.cited_all || []).join(", ")) || "—"}</td>
-        <td>${c.with_ok && c.without_ok ? "✓" : "miss"}</td>
-        <td class="muted">${esc((c.with.tokens && c.with.tokens.in) || 0)} tok</td></tr>`;
-    }).join("");
-    $("bench-body").innerHTML = `
-      <table><thead><tr><th>case</th><th>with memory</th><th>without</th><th>cited</th><th>vs pre-registered</th><th>pacing</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-      <div class="hint">decisions changed by memory: ${esc((r.decisions_changed || []).join(", ") || "—")} ·
-      pre-registered before the run; every miss reported (§12).</div>`;
-  } catch (e) { toast(`benchmark: ${e.message}`, true); }
+/* ---------- command palette (Ctrl+K) ---------- */
+const P = { items: [], idx: 0 };
+function paletteItems(q) {
+  const acts = [];
+  if (S.selectedAlert) acts.push({ g: "Actions", l: `Investigate ${S.selectedAlert}`, s: "the AI reads the evidence", run: investigate });
+  acts.push({ g: "Actions", l: S.live ? "Stop the live stream" : "Start the live stream", s: "simulated payments", run: simToggle });
+  acts.push({ g: "Actions", l: "Open the with / without proof", s: "benchmark", run: openBench });
+  if (S.currentCase) acts.push({ g: "Actions", l: `Write the case report for ${S.currentCase}`, s: "one AI call", run: writeReport });
+  acts.push({ g: "Actions", l: "Refresh the queue", s: "alerts + cases", run: () => { refreshAlerts(); refreshCases(); } });
+  const al = S.alerts.map((a) => ({ g: "Alerts", l: TYPE_PLAIN[a.type] || a.type, s: `${a.target} · ${a.id}`,
+    run: () => { setTab("alerts"); selectAlert(a.id); const el = document.querySelector(`#alerts .item[data-id="${CSS.escape(a.id)}"]`); if (el) el.scrollIntoView({ block: "nearest" }); } }));
+  const cs = S.cases.map((c) => ({ g: "Cases", l: c.case_id, s: `${c.target || ""} · ${c.last_action || "no decision"}`, run: () => openCase(c.case_id) }));
+  const all = acts.concat(al, cs);
+  const t = q.trim().toLowerCase();
+  return (t ? all.filter((x) => (x.l + " " + x.s).toLowerCase().includes(t)) : all).slice(0, 40);
 }
+function paintPalette() {
+  const list = $("pal-list");
+  if (!P.items.length) { list.innerHTML = '<div class="pal-empty">Nothing found.</div>'; return; }
+  let g = "";
+  list.innerHTML = P.items.map((x, i) => {
+    const head = x.g !== g ? `<div class="pal-group">${esc((g = x.g))}</div>` : "";
+    return `${head}<button class="pal-item ${i === P.idx ? "on" : ""}" data-i="${i}" role="option"><span class="pi-l">${esc(x.l)}</span><span class="pi-s">${esc(x.s)}</span></button>`;
+  }).join("");
+  const on = list.querySelector(".pal-item.on");
+  if (on) on.scrollIntoView({ block: "nearest" });
+}
+function openPalette() {
+  const d = $("palette");
+  if (d.open) return;
+  $("pal-q").value = "";
+  P.items = paletteItems(""); P.idx = 0;
+  paintPalette();
+  d.showModal();
+  $("pal-q").focus();
+}
+function runPalette(i) {
+  const x = P.items[i];
+  $("palette").close();
+  if (x) x.run();
+}
+function openBench() { $("benchmark").showModal(); benchLoad(); }
 
 /* ---------- wire ---------- */
-$("refresh").addEventListener("click", refreshAlerts);
+$("refresh").addEventListener("click", (e) => {
+  e.currentTarget.classList.remove("spin"); void e.currentTarget.offsetWidth; e.currentTarget.classList.add("spin");
+  refreshAlerts(); refreshCases();
+});
 $("investigate").addEventListener("click", investigate);
-$("bench-open").addEventListener("click", () => { $("benchmark").classList.remove("hidden"); benchLoad(); });
+$("sim-live").addEventListener("click", simToggle);
+$("bench-open").addEventListener("click", openBench);
 $("bench-load").addEventListener("click", benchLoad);
-$("bench-close").addEventListener("click", () => $("benchmark").classList.add("hidden"));
+$("bench-close").addEventListener("click", () => $("benchmark").close());
+$("benchmark").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 $("override-form").addEventListener("submit", overrideSubmit);
+document.querySelectorAll('input[name="action"]').forEach((r) =>
+  r.addEventListener("change", () => ($("override-btn").textContent = `Record override → ${overrideAction()}`)));
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => setTab(t.dataset.tab)));
+$("search").addEventListener("input", (e) => { S.q = e.target.value; renderQueue(); });
+$("type-chips").addEventListener("click", (e) => {
+  const c = e.target.closest(".chip");
+  if (c) { S.type = c.dataset.type; renderQueue(); }
+});
+$("alerts").addEventListener("click", (e) => { const it = e.target.closest(".item"); if (it) selectAlert(it.dataset.id); });
+$("alerts").addEventListener("dblclick", (e) => { const it = e.target.closest(".item"); if (it) { selectAlert(it.dataset.id); investigate(); } });
+$("cases").addEventListener("click", (e) => { const it = e.target.closest(".item"); if (it) openCase(it.dataset.id); });
+$("selected-line").addEventListener("click", (e) => { const b = e.target.closest("[data-open]"); if (b) openCase(b.dataset.open); });
+["alerts", "cases"].forEach((id) => $(id).addEventListener("keydown", (e) => {
+  const items = [...$(id).querySelectorAll(".item")];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const n = items[Math.max(0, Math.min(items.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))];
+    if (n) { n.focus(); if (id === "alerts") selectAlert(n.dataset.id); }
+  } else if (e.key === "Enter" && i >= 0) {
+    e.preventDefault();
+    const it = items[i];
+    if (id === "cases") openCase(it.dataset.id);
+    else if (S.selectedAlert === it.dataset.id) investigate();
+    else selectAlert(it.dataset.id);
+  }
+}));
+$("pal-open").addEventListener("click", openPalette);
+$("pal-q").addEventListener("input", (e) => { P.items = paletteItems(e.target.value); P.idx = 0; paintPalette(); });
+$("pal-q").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    P.idx = (P.idx + (e.key === "ArrowDown" ? 1 : -1) + P.items.length) % Math.max(1, P.items.length);
+    paintPalette();
+  } else if (e.key === "Enter") { e.preventDefault(); runPalette(P.idx); }
+});
+$("pal-list").addEventListener("click", (e) => { const b = e.target.closest(".pal-item"); if (b) runPalette(+b.dataset.i); });
+$("palette").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); return; }
+  const tag = (document.activeElement && document.activeElement.tagName) || "";
+  if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(tag)) { e.preventDefault(); $("search").focus(); }
+});
+/* money map: hover a payer to trace its route; everything else steps back */
+$("case-body").addEventListener("pointerover", (e) => {
+  const svg = e.target.closest && e.target.closest(".flow svg");
+  if (!svg) return;
+  const g = e.target.closest(".node");
+  svg.classList.toggle("focus", !!g);
+  svg.querySelectorAll(".hot").forEach((x) => x.classList.remove("hot"));
+  if (!g) return;
+  g.classList.add("hot");
+  if (g.dataset.k != null) svg.querySelectorAll(`.edge[data-k="${g.dataset.k}"]`).forEach((x) => x.classList.add("hot"));
+  else svg.querySelectorAll(".edge").forEach((x) => x.classList.add("hot"));   // receiver: every route is its own
+});
+$("case-body").addEventListener("pointerout", (e) => {
+  const svg = e.target.closest && e.target.closest(".flow svg");
+  if (svg && !svg.contains(e.relatedTarget)) {
+    svg.classList.remove("focus");
+    svg.querySelectorAll(".hot").forEach((x) => x.classList.remove("hot"));
+  }
+});
 boot();
