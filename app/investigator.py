@@ -125,6 +125,9 @@ Confidence anchors (fixed):
   decide on the evidence alone (anchors above apply)."""
 
 MAX_STEPS = 8
+RESPOND_ONLY = [t for t in TOOLS_SCHEMA if t["function"]["name"] == VERDICT_TOOL]
+FINAL_NUDGE = (f"Investigation budget used. Call the {VERDICT_TOOL} tool now with your "
+               "verdict object, based on the evidence you already have.")
 JSON_FALLBACK = re.compile(r"\{.*\}", re.DOTALL)
 
 
@@ -155,7 +158,10 @@ def _parse_verdict(text):
     verdict = d.get("verdict")
     if verdict not in ("fraud", "legit", "unclear"):
         return None
-    d.setdefault("confidence", 0.0)
+    try:   # code compares confidence against the policy thresholds — keep it a 0..1 number
+        d["confidence"] = min(max(float(d.get("confidence") or 0.0), 0.0), 1.0)
+    except (TypeError, ValueError):
+        d["confidence"] = 0.0
     d.setdefault("evidence", [])
     d.setdefault("precedents", [])
     d.setdefault("rationale", "")
@@ -177,7 +183,7 @@ def investigate_case(case_id, client=None):
         d = _parse_verdict(json.dumps(args)) if isinstance(args, dict) else None
         return d
 
-    def _call(client, messages):
+    def _call(client, messages, tools=TOOLS_SCHEMA):
         """One chat call with 429 backoff + truncation guard (reasoning models
         spend output tokens thinking before they answer)."""
         delay = 15
@@ -185,7 +191,7 @@ def investigate_case(case_id, client=None):
         for attempt in range(7):
             try:
                 resp = client.chat.completions.create(
-                    model=LLM_MODEL, messages=messages, tools=TOOLS_SCHEMA,
+                    model=LLM_MODEL, messages=messages, tools=tools,
                     tool_choice="auto", temperature=0, max_tokens=3000)
                 msg = resp.choices[0].message
                 truncated = (getattr(resp.choices[0], "finish_reason", None) == "length"
@@ -203,8 +209,13 @@ def investigate_case(case_id, client=None):
                 delay = min(delay * 2, 90)
         return resp
 
-    for _ in range(MAX_STEPS):
-        resp = _call(client, messages)
+    # the last step offers ONLY the respond tool: the model must answer, it can't
+    # keep reading until the budget runs out (that ended runs as "unclear 0.0")
+    for step in range(MAX_STEPS + 1):
+        last = step == MAX_STEPS
+        if last:
+            messages.append({"role": "user", "content": FINAL_NUDGE})
+        resp = _call(client, messages, tools=RESPOND_ONLY if last else TOOLS_SCHEMA)
         usage = getattr(resp, "usage", None)
         if usage:
             tokens_in += usage.prompt_tokens or 0
@@ -212,27 +223,36 @@ def investigate_case(case_id, client=None):
         msg = resp.choices[0].message
         if not msg.tool_calls:
             final_verdict = _parse_verdict(msg.content)
-            break
-        # the respond tool (or any improvised tool holding the verdict) = final answer
-        final_tc = [tc for tc in msg.tool_calls if tc.function.name == VERDICT_TOOL]
-        if not final_tc:
-            unknown = [tc for tc in msg.tool_calls
-                       if tc.function.name not in TOOL_REGISTRY]
-            if unknown and _as_verdict(_schema_args(unknown[0])):
-                final_verdict = _as_verdict(_schema_args(unknown[0]))
+            if final_verdict or last:
                 break
+            # prose without a verdict → ask for the structured answer, keep going
+            messages.append({"role": "assistant", "content": msg.content or ""})
+            messages.append({"role": "user", "content": FINAL_NUDGE})
+            continue
         messages.append({"role": "assistant", "content": msg.content or "",
                          "tool_calls": [{"id": tc.id, "type": "function",
                                          "function": {"name": tc.function.name,
                                                       "arguments": tc.function.arguments}}
                                         for tc in msg.tool_calls]})
+        # every tool call gets a tool reply — an unanswered call makes the next request invalid
         for tc in msg.tool_calls:
             args = _schema_args(tc)
             if tc.function.name == VERDICT_TOOL or tc.function.name not in TOOL_REGISTRY:
+                # the respond tool (or an improvised tool holding the verdict) = final answer
                 dv = _as_verdict(args)
                 if dv and not final_verdict:
                     final_verdict = dv
-                break
+                note = ("verdict recorded" if dv else
+                        f"not a valid verdict: call {VERDICT_TOOL} with verdict "
+                        "fraud|legit|unclear, confidence 0-1 and a rationale")
+                messages.append({"role": "tool", "tool_call_id": tc.id,
+                                 "content": json.dumps({"tool": tc.function.name,
+                                                        "note": note})})
+                continue
+            if final_verdict:   # verdict already in hand — don't run reads after it
+                messages.append({"role": "tool", "tool_call_id": tc.id,
+                                 "content": json.dumps({"skipped": True})})
+                continue
             try:
                 result = run_tool(tc.function.name, "investigator", **args)
                 payload = {"query_id": f"q{len(calls) + 1}", "tool": tc.function.name,

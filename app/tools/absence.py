@@ -74,7 +74,7 @@ def prove_absence(case_id):
     row = g.query(
         """MATCH (a:Account)-[:USED_DEVICE]->(:Device)<-[:USED_DEVICE]-(o:Account)
            WHERE a.id IN $ids MATCH (:Case)-[:ABOUT]->(o)
-           WHERE o.id NOT IN $ids RETURN count(DISTINCT o)""",
+           WHERE NOT o.id IN $ids RETURN count(DISTINCT o)""",
         {"ids": targets}).result_set[0][0]
     check("device_buddies", "any involved account shares a device with another under-investigation account", row)
 
@@ -114,7 +114,7 @@ def prove_absence(case_id):
     # 7) every payer identity-verified (a clean payroll needs real people)
     row = g.query(
         """MATCH (s:Account)-[:SENT]->(x:Transaction)-[:TO]->(a:Account)
-           WHERE a.id IN $ids AND s.id NOT IN $ids
+           WHERE a.id IN $ids AND NOT s.id IN $ids
            MATCH (s)<-[:OWNS]-(p:Person)
            WITH DISTINCT s, p
            RETURN count(DISTINCT s) AS senders,

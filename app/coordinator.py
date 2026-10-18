@@ -240,13 +240,15 @@ def _run_pipeline(case_id, ablated, client, g):
             {"cid": case_id, "nid": node_id, "qid": call["query_id"],
              "tool": call["tool"], "args": json.dumps(call["args"], default=str),
              "snap": json.dumps(call["result"], default=str)[:200], "asof": asof})
-    if action == "freeze":
+    if action == "freeze" and target:
+        # freeze the alert's drain only — the expanded scope holds its (possibly
+        # innocent) payers, and a freeze marks an account as confirmed fraud
         g.query(
-            """MATCH (c:Case {id:$cid})-[:ABOUT]->(target:Account), (dec:Decision {id:$did})
+            """MATCH (c:Case {id:$cid})-[:ABOUT]->(target:Account {id:$tid}), (dec:Decision {id:$did})
                CREATE (fo:FreezeOrder {id:$fid, ts:$ts})
                CREATE (fo)-[:FREEZES {ts:$ts}]->(target)
                CREATE (fo)-[:ISSUED_BY {ts:$ts}]->(dec)""",
-            {"cid": case_id, "did": dec_id, "fid": f"FO-{seq:04d}", "ts": _now()})
+            {"cid": case_id, "tid": target, "did": dec_id, "fid": f"FO-{seq:04d}", "ts": _now()})
     if receipt:   # the clearance rides its own receipt — stored ON the decision
         g.query(
             """MATCH (d:Decision {id:$did}), (c:Case {id:$cid})
