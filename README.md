@@ -47,6 +47,9 @@ All data is synthetic.
 
 Prereqs: **Docker**, **Python 3.11+**, one OpenAI-compatible LLM key — a free
 [Groq key](https://console.groq.com/keys) or an [Ollama](https://ollama.com) cloud key both work.
+Any OpenAI-compatible provider works if its model supports **tool (function) calling** — the agent
+investigates by calling graph tools; the default `gpt-oss-120b` does. To switch provider, change the
+three `LLM_*` lines in `.env`.
 
 ```bash
 git clone https://github.com/CombatAFK378/OmegaDesk.git
