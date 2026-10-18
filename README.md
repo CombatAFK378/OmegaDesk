@@ -19,7 +19,7 @@ first-class graph node with a replayable evidence chain.
 | **Graph model** | [The graph model](#the-graph-model-v21-6) below |
 | **Cypher queries** | [`queries/`](queries/) + inline in `app/` (signals, tools, proof-of-absence) |
 | **Benchmark result** | [`benchmark_report.json`](benchmark_report.json) — committed, also shown in the UI footer |
-| **AI-use disclosure** | [Where the "AI" is](#where-the-ai-is-disclosure-per-event-rules-1213) |
+| **AI-use disclosure** | [Where the "AI" is](#where-the-ai-is-disclosure-per-event-rules-1113) |
 
 ---
 
@@ -74,16 +74,36 @@ LLM_MODEL=openai/gpt-oss-120b                   # ollama: gpt-oss:120b
 .venv/bin/python -m app.mcp_server      # stdio transport; the C3 exit test drives it with a real MCP client
 ```
 
-## Run the demo path (§17 in three minutes)
+## Track 02 — agent memory (what persists, and where)
 
-```bash
-python -m seed.seed                  # clean world
-curl -X POST localhost:8000/sim/inject/C    # merchant fan-in → alert     (Swagger: POST /sim/inject/C)
-# UI: pick the new alert ▸ Investigate ▸ read the decision
-# UI: record an override (AN-DEV ▸ clear ▸ reason)   ← this becomes precedent
-curl -X POST localhost:8000/sim/inject/Cp   # a SIMILAR merchant later
-# UI: investigate C′ ▸ it cites the clearance precedent (HOV-016-family) → escalate, not freeze
-```
+| memory | how it lives in the graph |
+|---|---|
+| **Episodic** — every investigation | one `Decision` node per run, with its `EVIDENCE` (query, snapshot, as-of) — replayable |
+| **Lessons** — analyst corrections | an override `Decision` that `OVERRIDES` the wrong one; later cases `CITES {applies, distinguishing}` it |
+| **Procedural** — the rule applied | each decision `APPLIED_POLICY` → the `Regulation` it applied |
+| **Memory that updates** | an overruled decision is dropped from precedent search and refused at citation time — never cited again |
+| **Persists across sessions** | the graph lives in a Docker volume: restart the app and every case, lesson and citation is still there |
+| **Shared between agents** | the MCP server hands the same memory to any MCP client (`past_similar_cases`, `investigate_alert`) — an outside agent reads it and adds to it |
+| **Proof it matters** | the with/without benchmark: memory changes the decision in B and E; the UI's **Without memory** switch reproduces it live |
+
+## Run the demo path (all from the UI)
+
+Open the desk → **🎬 Demo tools** → **Reset to a fresh world**, then plant the stories **in this
+order**, investigating each before planting the next (the monitor watches the window before the
+newest transaction):
+
+| # | Demo tools button | then | expected |
+|---|---|---|---|
+| 1 | Plant the phone-sharing ring (A) | `A-EXIT` alert ▸ Investigate | freeze — cites `D-2025-0417`, the 2025 ring on the same device |
+| 2 | Plant the clean funnel (B) | `A-BT` alert ▸ Investigate, again with **Without memory** | escalate with memory, freeze without — the AI's confidence decides, so this one varies between runs |
+| 3 | Plant the verified business (C) | `A-MER-PAY` alert ▸ Investigate | clear — the proof-of-absence receipt |
+| 4 | Plant the trap (E) | investigates itself; click again with **Without memory** on | escalate citing the correction `HOV-019` · freeze without |
+| 5 | Plant its look-alike (C′) | the same `A-MER-PAY` alert ▸ Investigate again | clear — cites C's fresh decision and `HOV-016` |
+| 6 | Plant the dark look-alike (D) | `A-DARK-MER` alert ▸ Investigate | freeze — distinguishes every clearance (no business KYC) |
+
+Then correct any decision in the **Human override** panel — the corrected decision is never cited
+again. Each story plants once per world (a replant is refused; Reset to start over). The same steps
+over HTTP: `POST /sim/reseed`, `POST /sim/inject/{A|B|C|E|CP|D}`, `POST /cases/investigate`.
 
 The with/without proof — the benchmark (§12):
 
@@ -108,7 +128,7 @@ Account status is *derived* from `FreezeOrder` events; nothing is mutated in pla
 Handy queries live in [`queries/`](queries/) — graph overview, the §7 fraud patterns, the
 memory lineage (citations + overrides), evidence replay.
 
-## Where the "AI" is (disclosure per event rules 12–13)
+## Where the "AI" is (disclosure per event rules 11–13)
 
 - **One LLM loop, exactly:** `app/investigator.py` (the Investigator). It chooses the read
   tools, judges precedents, and returns a structured verdict — never an action. Model:
@@ -119,7 +139,7 @@ memory lineage (citations + overrides), evidence replay.
   policy and actions (`app/policy.py`), scoping (`app/coordinator.py`). Code has authority;
   the model has an opinion.
 - This repository's code was written in pair-programming with AI coding agents (Claude Code /
-  OpenAI-compatible CLIs) in Oct 2026 — per event rule 13, disclosed here. Concept, graph model,
+  OpenAI-compatible CLIs) in Oct 2026 — per event rule 11, disclosed here. Concept, graph model,
   and the precedent thesis are the team's (see the Rule-8 note below).
 
 ## Pre-event note (Rule 8)
@@ -159,6 +179,6 @@ Test counts are exact asserts, never "looks about right."
   `tail -f journal.jsonl`.
 - Known limits (§18): planted synthetic world; the LLM is the only heuristic; benchmark is
   illustrative, not statistical.
-- **AI disclosure (hackathon rule 10):** built with disclosed AI coding assistance throughout
+- **AI disclosure (hackathon rule 11):** built with disclosed AI coding assistance throughout
   the hackathon; every design decision, benchmark result, and technical claim was driven and
   verified by the team, which can explain all of it.
