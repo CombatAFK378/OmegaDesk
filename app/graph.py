@@ -19,3 +19,12 @@ def get_db() -> FalkorDB:
 def get_graph():
     """Graph handle for the single 'desk' graph (architecture §4)."""
     return get_db().select_graph(GRAPH_NAME)
+
+def free_id(g, label, prefix, start, width=4):
+    """First `prefix-NNNN` id at or after `start` that no `label` node holds yet —
+    count()+1 alone collides once ids have gaps or reruns reuse them."""
+    n = start
+    while g.query(f"MATCH (x:{label} {{id:$id}}) RETURN 1 LIMIT 1",
+                  {"id": f"{prefix}-{n:0{width}d}"}).result_set:
+        n += 1
+    return n

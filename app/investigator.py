@@ -178,6 +178,7 @@ def investigate_case(case_id, client=None):
     ]
     calls, seq, tokens_in, tokens_out = [], [], 0, 0
     final_verdict = None
+    seen = {}   # (tool, args) → query_id of the first answer
 
     def _as_verdict(args):
         d = _parse_verdict(json.dumps(args)) if isinstance(args, dict) else None
@@ -253,6 +254,13 @@ def investigate_case(case_id, client=None):
                 messages.append({"role": "tool", "tool_call_id": tc.id,
                                  "content": json.dumps({"skipped": True})})
                 continue
+            key = (tc.function.name, json.dumps(args, sort_keys=True, default=str))
+            if key in seen:   # same read, same args → point back instead of re-sending the payload
+                messages.append({"role": "tool", "tool_call_id": tc.id,
+                                 "content": json.dumps({"tool": tc.function.name,
+                                                        "note": f"already answered as {seen[key]} "
+                                                                "above — reuse it and move on"})})
+                continue
             try:
                 result = run_tool(tc.function.name, "investigator", **args)
                 payload = {"query_id": f"q{len(calls) + 1}", "tool": tc.function.name,
@@ -262,6 +270,8 @@ def investigate_case(case_id, client=None):
                 payload = {"query_id": f"q{len(calls) + 1}", "tool": tc.function.name,
                            "args": args, "result": None, "error": str(exc)[:200]}
             calls.append(payload)
+            if payload["error"] is None:
+                seen[key] = payload["query_id"]
             messages.append({"role": "tool", "tool_call_id": tc.id,
                              "content": json.dumps(payload, default=str)[:1600]})
         if final_verdict:

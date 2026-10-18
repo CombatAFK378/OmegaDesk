@@ -1,35 +1,26 @@
 {
-  "run_id": "c1-test-1792322757",
+  "run_id": "c1-test-1792323520",
   "cases": [
     {
       "case": "A",
       "with": {
         "action": "freeze",
         "confidence": 0.92,
-        "cited": [
-          "D-2025-0417",
-          "HD-020",
-          "HD-014",
-          "HD-008"
-        ],
+        "cited": [],
         "cited_all": [
           "D-2025-0417",
+          "HD-002",
           "HD-008",
           "HD-014",
           "HD-020"
         ],
         "tokens": {
-          "in": 27466,
-          "out": 2051
+          "in": 18183,
+          "out": 2059
         },
         "tool_sequence": [
           "get_case_context",
-          "get_case_context",
-          "get_case_context",
-          "get_case_context",
-          "find_precedents",
-          "trace_money_path",
-          "find_shared_entities"
+          "find_precedents"
         ],
         "decision_id": "D-0029"
       },
@@ -54,7 +45,7 @@
       "case": "B",
       "with": {
         "action": "escalate",
-        "confidence": 0.92,
+        "confidence": 0.75,
         "cited": [],
         "cited_all": [
           "HD-022",
@@ -63,14 +54,13 @@
           "HOV-016"
         ],
         "tokens": {
-          "in": 10727,
-          "out": 2049
+          "in": 7715,
+          "out": 1586
         },
         "tool_sequence": [
           "get_case_context",
-          "find_shared_entities",
-          "find_precedents",
-          "prove_absence"
+          "trace_money_path",
+          "find_precedents"
         ],
         "decision_id": "D-0029"
       },
@@ -92,7 +82,7 @@
       "case": "C",
       "with": {
         "action": "clear",
-        "confidence": 0.78,
+        "confidence": 0.75,
         "cited": [
           "HOV-016",
           "HD-022",
@@ -106,24 +96,18 @@
           "HOV-016"
         ],
         "tokens": {
-          "in": 31669,
-          "out": 1997
+          "in": 17701,
+          "out": 2186
         },
         "tool_sequence": [
           "get_case_context",
-          "get_case_context",
-          "get_case_context",
-          "get_case_context",
-          "find_precedents",
-          "trace_money_path",
-          "trace_money_path",
-          "trace_money_path"
+          "find_precedents"
         ],
         "decision_id": "D-0029"
       },
       "without": {
         "action": "clear",
-        "confidence": 0.88,
+        "confidence": 0.0,
         "cited": [],
         "decision_id": "D-0030"
       },
@@ -139,8 +123,9 @@
       "case": "Cp",
       "with": {
         "action": "clear",
-        "confidence": 0.78,
+        "confidence": 0.88,
         "cited": [
+          "HOV-016",
           "HD-022",
           "HD-010",
           "HD-004"
@@ -152,15 +137,13 @@
           "HOV-016"
         ],
         "tokens": {
-          "in": 16425,
-          "out": 2073
+          "in": 10318,
+          "out": 1979
         },
         "tool_sequence": [
           "get_case_context",
-          "get_case_context",
-          "get_case_context",
           "find_precedents",
-          "trace_money_path"
+          "prove_absence"
         ],
         "decision_id": "D-0029"
       },
@@ -190,29 +173,30 @@
       "case": "D",
       "with": {
         "action": "freeze",
-        "confidence": 0.89,
+        "confidence": 0.88,
         "cited": [],
         "cited_all": [
-          "HD-024",
           "HOV-006",
           "HOV-016",
           "HOV-019"
         ],
         "tokens": {
-          "in": 11564,
-          "out": 2000
+          "in": 18247,
+          "out": 3135
         },
         "tool_sequence": [
           "get_case_context",
           "find_precedents",
+          "trace_money_path",
           "find_precedents",
-          "find_shared_entities"
+          "find_shared_entities",
+          "get_case_context"
         ],
         "decision_id": "D-0029"
       },
       "without": {
         "action": "freeze",
-        "confidence": 0.88,
+        "confidence": 0.9,
         "cited": [],
         "decision_id": "D-0030"
       },
@@ -236,17 +220,19 @@
       "case": "E",
       "with": {
         "action": "escalate",
-        "confidence": 0.73,
-        "cited": [],
+        "confidence": 0.75,
+        "cited": [
+          "HD-013",
+          "HD-007"
+        ],
         "cited_all": [
-          "HD-001",
           "HD-007",
           "HD-013",
           "HOV-019"
         ],
         "tokens": {
-          "in": 7365,
-          "out": 2388
+          "in": 7261,
+          "out": 2079
         },
         "tool_sequence": [
           "get_case_context",

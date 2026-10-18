@@ -7,7 +7,7 @@ The benchmark runner drives this run by run.
 import json
 from datetime import datetime, timedelta
 
-from .graph import get_graph
+from .graph import free_id, get_graph
 from .investigator import investigate_case
 from .journal import journal
 from .policy import REG_BY_SIGNAL, decide_action, precedent_action_guard
@@ -51,7 +51,7 @@ def open_case_for_alert(alert_id, g=None):
     if not row:
         raise KeyError(f"alert {alert_id!r} not found")
     atype, target, ws, we = row[0]
-    seq = g.query("MATCH (c:Case) RETURN count(c)").result_set[0][0] + 1
+    seq = free_id(g, "Case", "CASE", g.query("MATCH (c:Case) RETURN count(c)").result_set[0][0] + 1)
     case_id = f"CASE-{seq:04d}"
     created = _now()
     g.query(
@@ -152,11 +152,11 @@ def _run_pipeline(case_id, ablated, client, g):
     try:
         inv = investigate_case(case_id, client)
     except (BadRequestError, OpenAIError) as exc:   # LLM hiccup → degrade to a SAFE decision
-        set_memory_ablation(False)
+        set_memory_ablation(None)
         inv = {"verdict": "unclear", "confidence": 0.0, "evidence": [], "precedents": [],
                "rationale": f"investigator unavailable: {str(exc)[:120]}",
                "tool_sequence": [], "tokens": {"in": 0, "out": 0}, "calls": []}
-    set_memory_ablation(False)
+    set_memory_ablation(None)
 
     cited = _cited_precedent_actions(g, inv.get("precedents"))
     mitigation = _has_mitigating_precedent(g, inv.get("precedents"))
@@ -198,7 +198,7 @@ def _run_pipeline(case_id, ablated, client, g):
 
     top = next((s["code"] for s in fired if s["polarity"] == "aggravating"), None)
     reg = REG_BY_SIGNAL.get(top) if top else None  # citation (§10)
-    seq = g.query("MATCH (d:Decision) RETURN count(d)").result_set[0][0] + 1
+    seq = free_id(g, "Decision", "D", g.query("MATCH (d:Decision) RETURN count(d)").result_set[0][0] + 1)
     dec_id = f"D-{seq:04d}"
     g.query(
         """MATCH (c:Case {id:$cid})
@@ -209,9 +209,11 @@ def _run_pipeline(case_id, ablated, client, g):
          "action": action, "conf": inv.get("confidence", 0.0),
          "reason": inv.get("rationale", "")})
     # citation record per §6: Decision-[:CITES {applies, distinguishing}]->precedent-Decision
+    overruled = {r[0] for r in g.query(
+        "MATCH (d:Decision)<-[:OVERRIDES]-() RETURN d.id").result_set}
     for p in inv.get("precedents", []):
         pid = p.get("decision_id")
-        if not pid or "decision" not in str(pid).lower() and not pid.replace('-', '').isalnum():
+        if not pid or pid in overruled:   # an overruled decision is never cited, even if the model names it
             continue
         g.query(
             """MATCH (dec:Decision {id:$did}), (pd:Decision {id:$pid})
@@ -249,12 +251,12 @@ def _run_pipeline(case_id, ablated, client, g):
                CREATE (fo)-[:FREEZES {ts:$ts}]->(target)
                CREATE (fo)-[:ISSUED_BY {ts:$ts}]->(dec)""",
             {"cid": case_id, "tid": target, "did": dec_id, "fid": f"FO-{seq:04d}", "ts": _now()})
-    if receipt:   # the clearance rides its own receipt — stored ON the decision
+    if receipt:   # the receipt is stored ON the decision; only a clearance closes the case
         g.query(
             """MATCH (d:Decision {id:$did}), (c:Case {id:$cid})
                SET d.receipt_digest = $dg, d.receipt_as_of = $rasof,
-                   d.receipt_checks = $rchecks, c.status = 'closed',
-                   c.closed_at = $ts""",
+                   d.receipt_checks = $rchecks""" + ("""
+               , c.status = 'closed', c.closed_at = $ts""" if action == "clear" else ""),
             {"did": dec_id, "cid": case_id, "dg": receipt["digest"],
              "rasof": receipt["as_of"], "ts": _now(),
              "rchecks": json.dumps(receipt["checks"])})
