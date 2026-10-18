@@ -6,6 +6,7 @@ journaled, including authority rejections — the audit story starts here.
 No framework: a dataclass, a dict, one function.
 """
 import os
+import threading
 from dataclasses import dataclass
 from typing import Callable, Dict
 
@@ -20,12 +21,20 @@ WRITE_ROLES = {"executor"}
 # precedent recall for a run; C1's benchmark runs each case with this off and on.
 _MEMORY_TOOLS = {"find_precedents"}
 MEMORY_ABLATION = os.getenv("MEMORY_ABLATION", "off").strip().lower() == "on"
+# the per-run switch is thread-local: the API runs investigations in parallel worker
+# threads, and one run's "without memory" must never leak into another's
+_run = threading.local()
 
 
 def set_memory_ablation(on):
-    global MEMORY_ABLATION
-    MEMORY_ABLATION = bool(on)
-    return {"memory_ablation": "on" if MEMORY_ABLATION else "off"}
+    """on=True/False for this thread's runs; None = back to the env default."""
+    _run.ablated = None if on is None else bool(on)
+    return {"memory_ablation": "on" if _ablated() else "off"}
+
+
+def _ablated():
+    on = getattr(_run, "ablated", None)
+    return MEMORY_ABLATION if on is None else on
 
 
 @dataclass(frozen=True)
@@ -59,7 +68,7 @@ def run_tool(name, actor_role, **kwargs):
                 tool=name, role=actor_role, allowed=sorted(allowed))
         raise PermissionError(
             f"role {actor_role!r} may not call {tool.kind} tool {name!r} (allowed: {sorted(allowed)})")
-    if MEMORY_ABLATION and name in _MEMORY_TOOLS:
+    if _ablated() and name in _MEMORY_TOOLS:
         journal("tool_layer", "memory_ablated", tool=name, role=actor_role,
                 note="v2.1 §12: precedent recall stripped for this run")
         return {"ablated": True, "precedents": [], "case_id": kwargs.get("case_id")}

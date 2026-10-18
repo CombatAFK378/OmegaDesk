@@ -1,0 +1,319 @@
+{
+  "run_id": "c1-test-1792323520",
+  "cases": [
+    {
+      "case": "A",
+      "with": {
+        "action": "freeze",
+        "confidence": 0.92,
+        "cited": [],
+        "cited_all": [
+          "D-2025-0417",
+          "HD-002",
+          "HD-008",
+          "HD-014",
+          "HD-020"
+        ],
+        "tokens": {
+          "in": 18183,
+          "out": 2059
+        },
+        "tool_sequence": [
+          "get_case_context",
+          "find_precedents"
+        ],
+        "decision_id": "D-0029"
+      },
+      "without": {
+        "action": "freeze",
+        "confidence": 0.9,
+        "cited": [],
+        "decision_id": "D-0030"
+      },
+      "expected": {
+        "with": "freeze",
+        "without": "freeze"
+      },
+      "with_ok": true,
+      "without_ok": true,
+      "cite_checks": {
+        "must_cite": "D-2025-0417",
+        "ok": true
+      }
+    },
+    {
+      "case": "B",
+      "with": {
+        "action": "escalate",
+        "confidence": 0.75,
+        "cited": [],
+        "cited_all": [
+          "HD-022",
+          "HD-024",
+          "HOV-006",
+          "HOV-016"
+        ],
+        "tokens": {
+          "in": 7715,
+          "out": 1586
+        },
+        "tool_sequence": [
+          "get_case_context",
+          "trace_money_path",
+          "find_precedents"
+        ],
+        "decision_id": "D-0029"
+      },
+      "without": {
+        "action": "freeze",
+        "confidence": 0.88,
+        "cited": [],
+        "decision_id": "D-0030"
+      },
+      "expected": {
+        "with": "escalate",
+        "without": "freeze"
+      },
+      "with_ok": true,
+      "without_ok": true,
+      "cite_checks": {}
+    },
+    {
+      "case": "C",
+      "with": {
+        "action": "clear",
+        "confidence": 0.75,
+        "cited": [
+          "HOV-016",
+          "HD-022",
+          "HD-010",
+          "HD-004"
+        ],
+        "cited_all": [
+          "HD-004",
+          "HD-010",
+          "HD-022",
+          "HOV-016"
+        ],
+        "tokens": {
+          "in": 17701,
+          "out": 2186
+        },
+        "tool_sequence": [
+          "get_case_context",
+          "find_precedents"
+        ],
+        "decision_id": "D-0029"
+      },
+      "without": {
+        "action": "clear",
+        "confidence": 0.0,
+        "cited": [],
+        "decision_id": "D-0030"
+      },
+      "expected": {
+        "with": "clear",
+        "without": "clear"
+      },
+      "with_ok": true,
+      "without_ok": true,
+      "cite_checks": {}
+    },
+    {
+      "case": "Cp",
+      "with": {
+        "action": "clear",
+        "confidence": 0.88,
+        "cited": [
+          "HOV-016",
+          "HD-022",
+          "HD-010",
+          "HD-004"
+        ],
+        "cited_all": [
+          "HD-004",
+          "HD-010",
+          "HD-022",
+          "HOV-016"
+        ],
+        "tokens": {
+          "in": 10318,
+          "out": 1979
+        },
+        "tool_sequence": [
+          "get_case_context",
+          "find_precedents",
+          "prove_absence"
+        ],
+        "decision_id": "D-0029"
+      },
+      "without": {
+        "action": "clear",
+        "confidence": 0.88,
+        "cited": [],
+        "decision_id": "D-0030"
+      },
+      "expected": {
+        "with": "clear",
+        "without": "clear"
+      },
+      "with_ok": true,
+      "without_ok": true,
+      "cite_checks": {
+        "must_cite": [
+          "HOV-016",
+          "HD-004",
+          "HD-010",
+          "HD-022"
+        ],
+        "ok": true
+      }
+    },
+    {
+      "case": "D",
+      "with": {
+        "action": "freeze",
+        "confidence": 0.88,
+        "cited": [],
+        "cited_all": [
+          "HOV-006",
+          "HOV-016",
+          "HOV-019"
+        ],
+        "tokens": {
+          "in": 18247,
+          "out": 3135
+        },
+        "tool_sequence": [
+          "get_case_context",
+          "find_precedents",
+          "trace_money_path",
+          "find_precedents",
+          "find_shared_entities",
+          "get_case_context"
+        ],
+        "decision_id": "D-0029"
+      },
+      "without": {
+        "action": "freeze",
+        "confidence": 0.9,
+        "cited": [],
+        "decision_id": "D-0030"
+      },
+      "expected": {
+        "with": "freeze",
+        "without": "freeze"
+      },
+      "with_ok": true,
+      "without_ok": true,
+      "cite_checks": {
+        "must_cite": [
+          "HOV-016",
+          "HD-004",
+          "HD-010",
+          "HD-022"
+        ],
+        "ok": true
+      }
+    },
+    {
+      "case": "E",
+      "with": {
+        "action": "escalate",
+        "confidence": 0.75,
+        "cited": [
+          "HD-013",
+          "HD-007"
+        ],
+        "cited_all": [
+          "HD-007",
+          "HD-013",
+          "HOV-019"
+        ],
+        "tokens": {
+          "in": 7261,
+          "out": 2079
+        },
+        "tool_sequence": [
+          "get_case_context",
+          "trace_money_path",
+          "find_precedents"
+        ],
+        "decision_id": "D-0029"
+      },
+      "without": {
+        "action": "freeze",
+        "confidence": 0.88,
+        "cited": [],
+        "decision_id": "D-0030"
+      },
+      "expected": {
+        "with": "escalate",
+        "without": "freeze"
+      },
+      "with_ok": true,
+      "without_ok": true,
+      "cite_checks": {
+        "must_cite": "HOV-019",
+        "ok": true,
+        "never_cite": "HD-019",
+        "never_cite_ok": true
+      }
+    }
+  ],
+  "misses": [],
+  "pre_registered": {
+    "A": {
+      "target": "A-EXIT",
+      "with": "freeze",
+      "without": "freeze",
+      "must_cite": "D-2025-0417"
+    },
+    "B": {
+      "target": "A-BT",
+      "with": "escalate",
+      "without": "freeze",
+      "must_cite": null
+    },
+    "C": {
+      "target": "A-MER-PAY",
+      "with": "clear",
+      "without": "clear"
+    },
+    "Cp": {
+      "target": "A-MER-PAY",
+      "with": "clear",
+      "without": "clear",
+      "must_cite": [
+        "HOV-016",
+        "HD-004",
+        "HD-010",
+        "HD-022"
+      ]
+    },
+    "D": {
+      "target": "A-DARK-MER",
+      "with": "freeze",
+      "without": "freeze",
+      "must_cite": [
+        "HOV-016",
+        "HD-004",
+        "HD-010",
+        "HD-022"
+      ],
+      "must_distinguish": true
+    },
+    "E": {
+      "target": "A-E1",
+      "direct_case": true,
+      "with": "escalate",
+      "without": "freeze",
+      "must_cite": "HOV-019",
+      "never_cite": "HD-019"
+    }
+  },
+  "decisions_changed": [
+    "B",
+    "E"
+  ]
+}

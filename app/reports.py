@@ -31,23 +31,23 @@ def build_report(case_id, facts, client=None):
         "SOURCES:",
         f"[1] decision {decision['decision_id']} — action {decision['action']} at "
         f"{round((decision['confidence'] or 0) * 100)}% by {decision['decided_by']}",
-        f"[2] the case's measured signals: " + "; ".join(
-            f"{s['code']}={s['value']}" for s in facts["signals"]) or "(none)",
+        f"[2] the case's measured signals: " + ("; ".join(
+            f"{s['code']}={s['value']}" for s in facts["signals"]) or "(none)"),
         f"[3] receipt {'present (digest ' + decision['receipt']['digest'][:12] + ')' if decision.get('receipt') else 'not issued'}",
         f"[4] the agent's own written reasoning (its rationale, quote-worthy)",
-        f"[5] citations it made: " + "; ".join(
+        f"[5] citations it made: " + ("; ".join(
             f"{c['decision_id']} {'applies' if c['applies'] else 'distinguished'}"
             + (f" ({', '.join(c['distinguishing'])})" if c["distinguishing"] else "")
-            for c in decision["cites"]) or "(none)",
-        f"[6] evidence rows: " + "; ".join(
-            f"{e['tool']} ({e['query_id']})" for e in facts["evidence"]) or "(none)",
-        f"[7] freeze orders: " + "; ".join(f['order'] for f in facts["freeze_orders"]) or "(none)",
+            for c in decision["cites"]) or "(none)"),
+        f"[6] evidence rows: " + ("; ".join(
+            f"{e['tool']} ({e['query_id']})" for e in facts["evidence"]) or "(none)"),
+        f"[7] freeze orders: " + ("; ".join(f['order'] for f in facts["freeze_orders"]) or "(none)"),
         "",
         f"CASE: {case_id} · alert {facts['alert'][0]['id'] if facts['alert'] else 'none'} "
         f"({facts['alert'][0]['type'] if facts['alert'] else '—'}) · target {facts['alert'][0]['target'] if facts['alert'] else '—'}",
         f"DECISION: {decision['action']} · verdict {decision['verdict']} · "
         f"{round((decision['confidence'] or 0) * 100)}% sure",
-        f"AGENT'S RATIONALE: {decision['rationale'][:900]}",
+        f"AGENT'S RATIONALE: {(decision['rationale'] or '')[:900]}",
         "",
         "Answer ONLY with the report body (no headings, no preamble).",
     ]

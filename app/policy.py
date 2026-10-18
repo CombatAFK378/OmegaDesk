@@ -9,7 +9,7 @@
 """
 from datetime import datetime
 
-from .graph import get_graph
+from .graph import free_id, get_graph
 from .journal import journal
 
 FREEZE_MIN = 0.85
@@ -78,12 +78,14 @@ def record_override(case_id, analyst_id, action, reason, g=None):
     # the decision to correct = the newest one on the case that has no override yet
     row = g.query(
         "MATCH (c:Case {id:$cid})<-[:FOR_CASE]-(d:Decision) WHERE NOT ()-[:OVERRIDES]->(d) "
-        "RETURN d.id", {"cid": case_id}).result_set
+        "RETURN d.id ORDER BY d.ts DESC, d.id DESC LIMIT 1", {"cid": case_id}).result_set
     if not row:
         raise ValueError(f"case {case_id!r} has no uncorrected decision to override")
-    old_id = row[-1][0]
+    if not g.query("MATCH (an:Analyst {id:$id}) RETURN 1", {"id": analyst_id}).result_set:
+        raise ValueError(f"unknown analyst {analyst_id!r}")   # else the CREATE silently matches nothing
+    old_id = row[0][0]
     n = g.query("MATCH (d:Decision)<-[:OVERRIDES]-() RETURN count(d)").result_set[0][0] + 2
-    ov_id = f"D-OV-{n:02d}"
+    ov_id = f"D-OV-{free_id(g, 'Decision', 'D-OV', n, width=2):02d}"
     ts = datetime.now().isoformat(timespec="seconds")
     verdict = {"clear": "legit", "escalate": "unclear", "monitor": "legit"}.get(action, "unclear")
     g.query(
