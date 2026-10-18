@@ -136,3 +136,6 @@ Test counts are exact asserts, never "looks about right."
   `tail -f journal.jsonl`.
 - Known limits (§18): planted synthetic world; the LLM is the only heuristic; benchmark is
   illustrative, not statistical.
+- **AI disclosure (hackathon rule 10):** built with disclosed AI coding assistance throughout
+  the hackathon; every design decision, benchmark result, and technical claim was driven and
+  verified by the team, which can explain all of it.
